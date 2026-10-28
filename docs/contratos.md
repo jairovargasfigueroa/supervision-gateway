@@ -1,6 +1,6 @@
 # Gateway: contratos
 
-**Estado: pendiente.** El esquema GraphQL completo va en `docs/contratos/graphql-erp.md` de la carpeta general; aquí se copia la parte vigente cuando se defina.
+**Estado:** el esquema GraphQL completo va en `docs/contratos/graphql-erp.md` de la carpeta general; aquí se copia la parte vigente cuando se defina.
 
 ## Expone (GraphQL, al ERP)
 

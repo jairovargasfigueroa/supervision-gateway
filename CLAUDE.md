@@ -45,7 +45,7 @@ src/
 
 - No tiene base de datos ni reglas del negocio: solo arma respuestas.
 - Cada campo que viene de un servicio distinto se resuelve por separado; si un servicio no responde, ese campo devuelve error y el resto sí llega (respuesta parcial).
-- Tiempo máximo por llamada a un servicio: pocos segundos **[por definir el valor]**.
+- Tiempo máximo por llamada a un servicio: 3 segundos. Las consultas se reintentan una vez; las mutaciones no (ver `docs/convenciones.md` de la carpeta general).
 - Reenvía el token del usuario; los permisos finos los valida cada servicio.
 - El esquema GraphQL sigue `docs/contratos/graphql-erp.md` de la carpeta general.
 
