@@ -1,0 +1,21 @@
+# Dependencias y compilado
+node_modules/
+dist/
+build/
+coverage/
+.angular/
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# Configuración local (contraseñas)
+.env
+.env.*
+!.env.example
+
+# Editores y sistema
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
