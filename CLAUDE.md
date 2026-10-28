@@ -4,27 +4,41 @@ Gateway GraphQL de la plataforma: la **única** entrada del ERP (BFF). Recibe la
 
 Parte de la «Plataforma de supervisión de obras». Si existe `../CLAUDE.md` (carpeta que agrupa todos los proyectos), léelo primero: tiene las reglas transversales, el plan y los contratos generales.
 
-**Estado:** solo documentación. El proyecto del framework todavía no se generó (tarea de la fase 1 del plan general). No implementes una funcionalidad sin su especificación aprobada en `docs/specs/`.
+**Estado:** proyecto generado y configurado, sin funcionalidades. Solo existe la consulta técnica `salud`. No implementes una funcionalidad sin su especificación aprobada en `docs/specs/`.
 
 ## Stack
 
-- NestJS · TypeScript · GraphQL (Apollo **[por confirmar]**)
-- Valida el token de Keycloak y lo reenvía a los servicios
-- Puerto: `4000` **[por confirmar]**
+- Node 24 · NestJS 12 · TypeScript (módulos ES: imports con extensión `.js`)
+- `@nestjs/graphql` 14 + `@nestjs/apollo` 14 + Apollo Server 5, esquema **code-first** (se genera desde los resolvers)
+- `@nestjs/config` para variables de entorno
+- Pruebas con Vitest · lint con oxlint · formato con Prettier
+- Puerto: `4000` (`PORT`); GraphQL en `/graphql`
 
 ## Comandos
 
-Se completan al generar el proyecto.
+```sh
+npm install
+npm run start:dev    # levantar en modo desarrollo
+npm test             # pruebas unitarias
+npm run test:e2e     # pruebas de punta a punta (consulta { salud })
+npm run lint
+npm run build
+```
 
-## Estructura prevista
+Configuración local: copiar `.env.example` a `.env`. **`.env` nunca se sube.**
+
+## Estructura
 
 ```
 src/
-  <area>/            obras, materiales, finanzas, supervision
-    *.resolver.ts    consultas y mutaciones de esa área
-    *.client.ts      cliente REST del servicio
-  auth/              validación del token de Keycloak
-  common/            errores, tiempos máximos, registros
+  main.ts
+  app.module.ts       ConfigModule + GraphQLModule (Apollo, code-first)
+  salud/              consulta técnica { salud }
+  <area>/             (previsto) obras, materiales, finanzas, supervision
+    *.resolver.ts     consultas y mutaciones de esa área
+    *.client.ts       cliente REST del servicio
+  auth/               (previsto) validación del token de Keycloak
+  common/             (previsto) errores, tiempos máximos, registros
 ```
 
 ## Reglas del proyecto
@@ -37,10 +51,10 @@ src/
 
 ## Documentación
 
-- `docs/app.md`: qué hace, pantallas o responsabilidades, y qué no hace.
+- `docs/app.md`: responsabilidades y qué no hace.
 - `docs/contratos.md`: qué consume y qué expone.
 - `docs/specs/`: especificaciones por funcionalidad (`requisitos.md`, `diseno.md`, `tareas.md`).
 
 ## Commits
 
-Conventional Commits en español e imperativo (`feat(alcance): descripción`). Sin coautoría ni firmas de la IA.
+Conventional Commits en español e imperativo (`feat(obras): agrega consulta de obras`). Sin coautoría ni firmas de la IA.
