@@ -32,9 +32,9 @@ type Obra {
   partidas: [Partida!]!
   finanzas: FinanzasObra            # Finanzas; null sin error si el rol no es admin ni gerente
   materialComparado(periodo: String!): ComparacionMaterial   # Obras + Materiales
-  fotos(partidaId: ID): [Foto!]!
+  fotos(partidaId: ID, pagina: Int = 1, tamano: Int = 50): FotosPagina!
   planillas: [PlanillaResumen!]!
-  cobros: [Cobro!]                  # Finanzas; null sin error si el rol no es admin ni gerente
+  cobros: [Cobro!]                  # Finanzas (pide tamano=100); null sin error si el rol no es admin ni gerente
 }
 type ContratoObra { contratoId: ID monto: Float! plazoDias: Int! anticipoPct: Float! retencionPct: Float! }
 type Partida {
@@ -52,16 +52,17 @@ type FilaComparacion {
   previsto: Float! usado: Float! diferencia: Float! excedido: Boolean!
 }
 
+type FotosPagina { items: [Foto!]! total: Int! pagina: Int! tamano: Int! }
 type Foto { id: ID! partidaId: ID! registradoPor: Usuario registradoEn: String! publicadaCliente: Boolean! urlDescarga: String! }
 
-type PlanillaResumen { id: ID! numero: Int! periodo: String! estado: EstadoPlanilla! neto: Float! }
+type PlanillaResumen { id: ID! numero: Int! periodo: String! estado: EstadoPlanilla! neto: Float! cobroNumero: String }   # cobroNumero: 008, de Obras
 type Planilla {
   id: ID! obraId: ID! numero: Int! periodo: String! estado: EstadoPlanilla! version: Int!
   lineas: [LineaPlanilla!]!
   subtotal: Float! descuentoAnticipo: Float! retencion: Float! neto: Float!
   anticipoPct: Float! retencionPct: Float!
   observacion: String
-  cobro: Cobro                      # Finanzas por cobroId
+  cobro: CobroPlanilla              # 008 · id y numero de Obras; el resto de Finanzas, solo para admin y gerente
   fotoIds: [ID!]!
 }
 type LineaPlanilla {
@@ -71,6 +72,7 @@ type LineaPlanilla {
 }
 
 type Atributo { nombre: String! valor: String! }
+type MaterialesPagina { items: [Material!]! total: Int! pagina: Int! tamano: Int! }
 type Material {
   id: ID! codigo: String! nombre: String! tipo: TipoMaterial! unidad: String! unidadPlural: String!
   precioReferencial: Float! activo: Boolean! atributos: [Atributo!]!
@@ -81,6 +83,7 @@ type StockMaterial {
 }
 
 type Cobro { id: ID! numero: String! planillaId: ID! montoNeto: Float! emitidoEn: String! venceEn: String! estado: EstadoCobro! }
+type CobroPlanilla { id: ID! numero: String! montoNeto: Float emitidoEn: String venceEn: String estado: EstadoCobro }   # 008 · id y numero: Obras; el resto: Finanzas, null sin error si el rol no es admin ni gerente
 
 type Tablero { indicadores: IndicadoresTablero obras: [FilaTablero!] }
 type IndicadoresTablero {
@@ -114,14 +117,14 @@ input LineaEntrada { partidaId: ID! cantidadPeriodo: Float! }
 input GuardarPlanillaEntrada { version: Int! lineas: [LineaEntrada!]! fotoIds: [ID!]! }
 
 type Query {
-  salud: String!
+  salud: String!                                                    # fase 1 · sin token
   usuarios(rol: Rol!): [Usuario!]!                                   # 002 · admin
-  obras(estado: EstadoObra, busqueda: String): [ObraResumen!]!       # 006
-  obra(id: ID!): Obra                                                # 006
-  planilla(id: ID!): Planilla                                        # 007
-  materiales(busqueda: String, soloActivos: Boolean): [Material!]!   # 003
-  stockObra(obraId: ID!): [StockMaterial!]!                          # 003
-  tablero: Tablero!                                                  # 009
+  obras(estado: EstadoObra, busqueda: String): [ObraResumen!]!       # 006 · admin, gerente, residente (sus obras)
+  obra(id: ID!): Obra                                                # 006 · admin, gerente, residente (sus obras; si no la ve: 404 OBRA_NO_ENCONTRADA)
+  planilla(id: ID!): Planilla                                        # 007 · admin, gerente, residente (sus obras)
+  materiales(busqueda: String, soloActivos: Boolean, pagina: Int = 1, tamano: Int = 20): MaterialesPagina!   # 003 · admin, gerente, residente
+  stockObra(obraId: ID!): [StockMaterial!]!                          # 003 · admin, gerente, residente (sus obras)
+  tablero: Tablero!                                                  # 009 · admin, gerente, residente (sus obras)
 }
 
 type Mutation {
@@ -129,9 +132,9 @@ type Mutation {
   crearMaterial(entrada: MaterialEntrada!): Material!                        # 003 · admin
   actualizarMaterial(id: ID!, entrada: MaterialEntrada!): Material!          # 003 · admin
   definirStockMinimo(obraId: ID!, materialId: ID!, minimo: Float!): StockMaterial!  # 003 · admin
-  crearPlanilla(obraId: ID!, periodo: String!): Planilla!                    # 007 · residente
-  guardarPlanilla(id: ID!, entrada: GuardarPlanillaEntrada!): Planilla!      # 007 · residente
-  presentarPlanilla(id: ID!, version: Int!): Planilla!                       # 007 · residente
+  crearPlanilla(obraId: ID!, periodo: String!): Planilla!                    # 007 · residente asignado
+  guardarPlanilla(id: ID!, entrada: GuardarPlanillaEntrada!): Planilla!      # 007 · residente asignado
+  presentarPlanilla(id: ID!, version: Int!): Planilla!                       # 007 · residente asignado
 }
 ```
 
