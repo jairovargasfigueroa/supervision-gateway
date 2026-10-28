@@ -1,16 +1,150 @@
 # Gateway: contratos
 
-**Estado:** el esquema GraphQL completo va en `docs/contratos/graphql-erp.md` de la carpeta general; aquí se copia la parte vigente cuando se defina.
+Fuente para este proyecto. La copia general está en `docs/contratos/graphql-erp.md` de la carpeta que agrupa los proyectos.
 
-## Expone (GraphQL, al ERP)
+## Expone: esquema GraphQL del ERP (sistema base)
 
-Consultas y mutaciones por área: obras, planillas, materiales, finanzas, tablero; en la capa 5, agentes y reportes por voz.
+El esquema se escribe **code-first** en NestJS; este SDL es el resultado esperado. Los nombres coinciden con los JSON de los servicios. Fechas como `String` ISO; montos y cantidades como `Float`.
+
+```graphql
+enum Rol { admin residente gerente maestro almacenero cliente }
+enum EstadoObra { SIN_CONTRATO EN_EJECUCION CONCLUIDA }
+enum EstadoPlanilla { BORRADOR PRESENTADA APROBANDO APROBADA OBSERVADA }
+enum EstadoStock { BAJO JUSTO OK }
+enum EstadoCobro { PENDIENTE VENCIDO }
+enum TipoMaterial { CEMENTO ACERO AGREGADO LADRILLO MADERA ELECTRICO SANITARIO PINTURA OTRO }
+
+type Usuario { id: ID! nombre: String! correo: String }
+
+type ObraResumen {
+  id: ID! nombre: String! ubicacion: String! estado: EstadoObra! fechaInicio: String!
+  avancePct: Float! plazoPct: Float! enRiesgo: Boolean!
+  ultimaPlanilla: PlanillaCorta
+}
+type PlanillaCorta { periodo: String! estado: EstadoPlanilla! }
+
+type Obra {
+  id: ID! nombre: String! ubicacion: String! estado: EstadoObra! fechaInicio: String!
+  motivoRechazoContrato: String
+  residente: Usuario  maestro: Usuario  almacenero: Usuario  cliente: Usuario
+  contrato: ContratoObra!
+  avancePct: Float! plazoPct: Float! enRiesgo: Boolean!
+  partidas: [Partida!]!
+  finanzas: FinanzasObra            # Finanzas; null sin error si el rol no es admin ni gerente
+  materialComparado(periodo: String!): ComparacionMaterial   # Obras + Materiales
+  fotos(partidaId: ID): [Foto!]!
+  planillas: [PlanillaResumen!]!
+  cobros: [Cobro!]                  # Finanzas; null sin error si el rol no es admin ni gerente
+}
+type ContratoObra { contratoId: ID monto: Float! plazoDias: Int! anticipoPct: Float! retencionPct: Float! }
+type Partida {
+  id: ID! codigo: String! nombre: String! unidad: String!
+  cantidadContratada: Float! precioUnitario: Float! meses: String
+  ejecutadaAcumulada: Float! avancePct: Float!
+  insumos: [Insumo!]!
+}
+type Insumo { material: Material  materialId: ID! cantidadPorUnidad: Float! }
+type FinanzasObra { saldoDisponible: Float! totalCobrado: Float! totalReservado: Float! }
+
+type ComparacionMaterial { periodo: String! hayPlanilla: Boolean! filas: [FilaComparacion!]! }
+type FilaComparacion {
+  partidaId: ID! partidaCodigo: String! material: Material!
+  previsto: Float! usado: Float! diferencia: Float! excedido: Boolean!
+}
+
+type Foto { id: ID! partidaId: ID! registradoPor: Usuario registradoEn: String! publicadaCliente: Boolean! urlDescarga: String! }
+
+type PlanillaResumen { id: ID! numero: Int! periodo: String! estado: EstadoPlanilla! neto: Float! }
+type Planilla {
+  id: ID! obraId: ID! numero: Int! periodo: String! estado: EstadoPlanilla! version: Int!
+  lineas: [LineaPlanilla!]!
+  subtotal: Float! descuentoAnticipo: Float! retencion: Float! neto: Float!
+  anticipoPct: Float! retencionPct: Float!
+  observacion: String
+  cobro: Cobro                      # Finanzas por cobroId
+  fotoIds: [ID!]!
+}
+type LineaPlanilla {
+  partidaId: ID! codigo: String! nombre: String! unidad: String! precioUnitario: Float!
+  cantidadContratada: Float! acumuladoAnterior: Float! cantidadPeriodo: Float!
+  acumuladoTotal: Float! saldo: Float! monto: Float!
+}
+
+type Atributo { nombre: String! valor: String! }
+type Material {
+  id: ID! codigo: String! nombre: String! tipo: TipoMaterial! unidad: String! unidadPlural: String!
+  precioReferencial: Float! activo: Boolean! atributos: [Atributo!]!
+}
+type StockMaterial {
+  materialId: ID! codigo: String! nombre: String! unidad: String! unidadPlural: String!
+  cantidad: Float! minimo: Float! estado: EstadoStock!
+}
+
+type Cobro { id: ID! numero: String! planillaId: ID! montoNeto: Float! emitidoEn: String! venceEn: String! estado: EstadoCobro! }
+
+type Tablero { indicadores: IndicadoresTablero obras: [FilaTablero!] }
+type IndicadoresTablero {
+  obrasEnEjecucion: Int  obrasEnRiesgo: Int  materialesBajos: Int
+  cobrosVencidos: ResumenMonto       # null sin error si el rol no es admin ni gerente
+}
+type ResumenMonto { cantidad: Int! monto: Float! }
+type FilaTablero {
+  obraId: ID! nombre: String! avancePct: Float! plazoPct: Float! diferencia: Float! enRiesgo: Boolean!
+  materialesBajos: Int               # Materiales; null si no responde
+  ultimaPlanilla: PlanillaCorta
+}
+
+input AsignacionesEntrada { residenteId: ID! maestroId: ID! almaceneroId: ID! clienteId: ID! }
+input ContratoEntrada { monto: Float! plazoDias: Int! anticipoPct: Float! retencionPct: Float! firmadoEn: String! }
+input InsumoEntrada { materialId: ID! cantidadPorUnidad: Float! }
+input PartidaEntrada {
+  codigo: String! nombre: String! unidad: String! cantidadContratada: Float! precioUnitario: Float!
+  meses: String insumos: [InsumoEntrada!]
+}
+input RegistrarObraEntrada {
+  nombre: String! ubicacion: String! fechaInicio: String!
+  asignaciones: AsignacionesEntrada! contrato: ContratoEntrada! partidas: [PartidaEntrada!]!
+}
+input AtributoEntrada { nombre: String! valor: String! }
+input MaterialEntrada {
+  codigo: String! nombre: String! tipo: TipoMaterial! unidad: String! unidadPlural: String!
+  precioReferencial: Float! activo: Boolean atributos: [AtributoEntrada!]
+}
+input LineaEntrada { partidaId: ID! cantidadPeriodo: Float! }
+input GuardarPlanillaEntrada { version: Int! lineas: [LineaEntrada!]! fotoIds: [ID!]! }
+
+type Query {
+  salud: String!
+  usuarios(rol: Rol!): [Usuario!]!                                   # 002 · admin
+  obras(estado: EstadoObra, busqueda: String): [ObraResumen!]!       # 006
+  obra(id: ID!): Obra                                                # 006
+  planilla(id: ID!): Planilla                                        # 007
+  materiales(busqueda: String, soloActivos: Boolean): [Material!]!   # 003
+  stockObra(obraId: ID!): [StockMaterial!]!                          # 003
+  tablero: Tablero!                                                  # 009
+}
+
+type Mutation {
+  registrarObra(entrada: RegistrarObraEntrada!): Obra!                       # 002 · admin
+  crearMaterial(entrada: MaterialEntrada!): Material!                        # 003 · admin
+  actualizarMaterial(id: ID!, entrada: MaterialEntrada!): Material!          # 003 · admin
+  definirStockMinimo(obraId: ID!, materialId: ID!, minimo: Float!): StockMaterial!  # 003 · admin
+  crearPlanilla(obraId: ID!, periodo: String!): Planilla!                    # 007 · residente
+  guardarPlanilla(id: ID!, entrada: GuardarPlanillaEntrada!): Planilla!      # 007 · residente
+  presentarPlanilla(id: ID!, version: Int!): Planilla!                       # 007 · residente
+}
+```
+
+Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, reportes por voz) en sus especificaciones.
 
 ## Consume (REST)
 
-| Servicio | Para qué |
+| Servicio | Endpoints |
 |---|---|
-| Obras | Obras, presupuesto, avance, fotos, planillas |
-| Materiales | Catálogo, stock, consumos por partida |
-| Finanzas | Contratos, saldo, cobros |
-| IA (capas 4 y 5) | Predicciones, ejecuciones de agentes, sugerencias, reportes por voz |
+| Obras | `GET /obras`, `GET /obras/{id}`, `GET /obras/{id}/material-previsto`, `GET /obras/{id}/fotos`, `GET /obras/{id}/planillas`, `GET /planillas/{id}`, `POST /obras`, `POST /obras/{id}/planillas`, `PUT /planillas/{id}`, `POST /planillas/{id}/presentar` |
+| Materiales | `GET /materiales`, `POST /materiales`, `PUT /materiales/{id}`, `GET /obras/{id}/stock`, `PUT /obras/{id}/stock/{materialId}/minimo`, `GET /obras/{id}/consumos`, `GET /stock/resumen` |
+| Finanzas | `GET /contratos`, `GET /cobros`, `GET /cobros/{id}`, `GET /cobros/resumen` |
+| Keycloak (cliente `gateway`) | `GET /admin/realms/supervision/roles/{rol}/users`, `GET /admin/realms/supervision/users/{id}` |
+| IA (capas 4 y 5) | se definen en sus especificaciones |
+
+URLs base por variables de entorno: `OBRAS_URL`, `MATERIALES_URL`, `FINANZAS_URL`, `KEYCLOAK_URL`, `KEYCLOAK_GATEWAY_CLIENT_ID`, `KEYCLOAK_GATEWAY_CLIENT_SECRET`.
