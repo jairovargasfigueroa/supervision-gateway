@@ -5,5 +5,5 @@ Requisitos y diseño: `docs/specs/003-gestionar-materiales/` de la carpeta que a
 Marca cada tarea al terminarla (con sus pruebas y su commit).
 
 - [x] Cliente REST de Materiales; tipos `Material`, `StockMaterial`; consultas `materiales`, `stockObra`
-- [ ] Mutaciones `crearMaterial`, `actualizarMaterial`, `definirStockMinimo`
+- [x] Mutaciones `crearMaterial`, `actualizarMaterial`, `definirStockMinimo`
 - [ ] Pruebas

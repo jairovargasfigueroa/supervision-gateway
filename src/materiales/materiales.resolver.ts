@@ -1,8 +1,9 @@
-import { Args, Context, ID, Int, Query, Resolver } from '@nestjs/graphql';
+import { Args, Context, Float, ID, Int, Mutation, Query, Resolver } from '@nestjs/graphql';
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
 import { Roles } from '../comun/auth/roles.decorator.js';
+import { MaterialEntrada } from './entradas/material.entrada.js';
 import { MaterialesCliente } from './materiales.cliente.js';
-import { MaterialesPagina } from './modelos/material.modelo.js';
+import { Material, MaterialesPagina } from './modelos/material.modelo.js';
 import { StockMaterial } from './modelos/stock-material.modelo.js';
 
 /** 003: catálogo de materiales y stock mínimo por obra. Las reglas (código único, visibilidad, estado) las aplica Materiales. */
@@ -31,5 +32,38 @@ export class MaterialesResolver {
     @Args('obraId', { type: () => ID }) obraId: string,
   ): Promise<StockMaterial[]> {
     return this.materialesCliente.stockObra(obraId, contexto);
+  }
+
+  /** Crea un material en el catálogo; si el código existe llega CODIGO_MATERIAL_REPETIDO (409). */
+  @Roles('admin')
+  @Mutation(() => Material)
+  crearMaterial(
+    @Context() contexto: ContextoGraphql,
+    @Args('entrada', { type: () => MaterialEntrada }) entrada: MaterialEntrada,
+  ): Promise<Material> {
+    return this.materialesCliente.crear(entrada, contexto);
+  }
+
+  /** Reemplaza el material completo (activar o desactivar es cambiar `activo`). */
+  @Roles('admin')
+  @Mutation(() => Material)
+  actualizarMaterial(
+    @Context() contexto: ContextoGraphql,
+    @Args('id', { type: () => ID }) id: string,
+    @Args('entrada', { type: () => MaterialEntrada }) entrada: MaterialEntrada,
+  ): Promise<Material> {
+    return this.materialesCliente.actualizar(id, entrada, contexto);
+  }
+
+  /** Fija el mínimo del material en la obra (crea la fila con cantidad 0 si no existía). */
+  @Roles('admin')
+  @Mutation(() => StockMaterial)
+  definirStockMinimo(
+    @Context() contexto: ContextoGraphql,
+    @Args('obraId', { type: () => ID }) obraId: string,
+    @Args('materialId', { type: () => ID }) materialId: string,
+    @Args('minimo', { type: () => Float }) minimo: number,
+  ): Promise<StockMaterial> {
+    return this.materialesCliente.definirMinimo(obraId, materialId, minimo, contexto);
   }
 }
