@@ -1,6 +1,10 @@
 import { errorDesdeRespuesta, servicioNoDisponible } from './errores.js';
 
-const problema = (estado: number, cuerpo: unknown, tipo = 'application/problem+json') =>
+const problema = (
+  estado: number,
+  cuerpo: unknown,
+  tipo = 'application/problem+json',
+) =>
   new Response(typeof cuerpo === 'string' ? cuerpo : JSON.stringify(cuerpo), {
     status: estado,
     headers: { 'content-type': tipo },
@@ -41,13 +45,21 @@ describe('errorDesdeRespuesta (Problem Details → extensions.codigo)', () => {
   });
 
   it('sin cuerpo JSON usa el código genérico del estado', async () => {
-    expect((await errorDesdeRespuesta(problema(400, 'mal', 'text/plain'), 'obras')).extensions.codigo).toBe(
-      'DATOS_INVALIDOS',
-    );
-    expect((await errorDesdeRespuesta(problema(403, '{roto', 'application/json'), 'obras')).extensions.codigo).toBe(
-      'SIN_PERMISO',
-    );
-    expect((await errorDesdeRespuesta(problema(502, ''), 'finanzas')).extensions).toMatchObject({
+    expect(
+      (await errorDesdeRespuesta(problema(400, 'mal', 'text/plain'), 'obras'))
+        .extensions.codigo,
+    ).toBe('DATOS_INVALIDOS');
+    expect(
+      (
+        await errorDesdeRespuesta(
+          problema(403, '{roto', 'application/json'),
+          'obras',
+        )
+      ).extensions.codigo,
+    ).toBe('SIN_PERMISO');
+    expect(
+      (await errorDesdeRespuesta(problema(502, ''), 'finanzas')).extensions,
+    ).toMatchObject({
       codigo: 'ERROR_INTERNO',
       servicio: 'finanzas',
       estado: 502,

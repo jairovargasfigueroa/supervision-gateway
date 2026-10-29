@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { GraphQLError } from 'graphql';
 import type { ContextoGraphql } from '../auth/contexto.js';
-import { errorDesdeRespuesta, servicioNoDisponible, type Servicio } from './errores.js';
+import {
+  errorDesdeRespuesta,
+  servicioNoDisponible,
+  type Servicio,
+} from './errores.js';
 
 export interface OpcionesCliente {
   urls: Record<Servicio, string>;
@@ -19,7 +23,11 @@ export class ClienteServicio {
 
   constructor(private readonly opciones: OpcionesCliente) {}
 
-  consultar<T>(servicio: Servicio, ruta: string, contexto: ContextoGraphql): Promise<T> {
+  consultar<T>(
+    servicio: Servicio,
+    ruta: string,
+    contexto: ContextoGraphql,
+  ): Promise<T> {
     return this.pedir<T>(servicio, 'GET', ruta, undefined, contexto, 2);
   }
 
@@ -41,27 +49,37 @@ export class ClienteServicio {
     { req }: ContextoGraphql,
     intentos: number,
   ): Promise<T> {
-    const encabezados: Record<string, string> = { accept: 'application/json', 'x-request-id': req.requestId };
+    const encabezados: Record<string, string> = {
+      accept: 'application/json',
+      'x-request-id': req.requestId,
+    };
     if (req.token) encabezados['authorization'] = `Bearer ${req.token}`;
     if (cuerpo !== undefined) encabezados['content-type'] = 'application/json';
 
     for (let intento = 1; ; intento++) {
       try {
-        const respuesta = await fetch(`${this.opciones.urls[servicio]}${ruta}`, {
-          method: metodo,
-          headers: encabezados,
-          body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
-          signal: AbortSignal.timeout(this.opciones.tiempoMaximoMs),
-        });
+        const respuesta = await fetch(
+          `${this.opciones.urls[servicio]}${ruta}`,
+          {
+            method: metodo,
+            headers: encabezados,
+            body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
+            signal: AbortSignal.timeout(this.opciones.tiempoMaximoMs),
+          },
+        );
         if (respuesta.ok) {
-          return (respuesta.status === 204 ? undefined : await respuesta.json()) as T;
+          return (
+            respuesta.status === 204 ? undefined : await respuesta.json()
+          ) as T;
         }
         if (respuesta.status >= 500 && intento < intentos) continue;
         throw await errorDesdeRespuesta(respuesta, servicio);
       } catch (error) {
         if (error instanceof GraphQLError) throw error;
         if (intento < intentos) continue;
-        this.registro.warn(`[${req.requestId}] ${servicio} no respondió: ${metodo} ${ruta} (${(error as Error).name})`);
+        this.registro.warn(
+          `[${req.requestId}] ${servicio} no respondió: ${metodo} ${ruta} (${(error as Error).name})`,
+        );
         throw servicioNoDisponible(servicio);
       }
     }

@@ -9,7 +9,10 @@ import { Limitador } from './comun/auth/limitador.js';
 import { limitarConsultas } from './comun/graphql/limites.js';
 import { JwtGuard } from './comun/auth/jwt.guard.js';
 import { RolesGuard } from './comun/auth/roles.guard.js';
-import { VERIFICADOR_TOKEN, VerificadorToken } from './comun/auth/verificador-token.js';
+import {
+  VERIFICADOR_TOKEN,
+  VerificadorToken,
+} from './comun/auth/verificador-token.js';
 import { ComunModule } from './comun/comun.module.js';
 import { RequestIdMiddleware } from './comun/http/request-id.middleware.js';
 import { MaterialesModule } from './materiales/materiales.module.js';
@@ -27,12 +30,17 @@ const enProduccion = process.env.NODE_ENV === 'production';
       driver: ApolloDriver,
       autoSchemaFile: true,
       // La petición (con su X-Request-Id, usuario y token) llega a guards y resolvers
-      context: ({ req, res }: { req: Request; res: Response }) => ({ req, res }),
+      context: ({ req, res }: { req: Request; res: Response }) => ({
+        req,
+        res,
+      }),
       // Convenciones, «Seguridad»: profundidad y complejidad máximas; introspección y Sandbox solo en desarrollo
       validationRules: [limitarConsultas()],
       introspection: !enProduccion,
       playground: false,
-      plugins: enProduccion ? [] : [ApolloServerPluginLandingPageLocalDefault()],
+      plugins: enProduccion
+        ? []
+        : [ApolloServerPluginLandingPageLocalDefault()],
     }),
     ComunModule,
     ObrasModule,

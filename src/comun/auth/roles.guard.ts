@@ -15,15 +15,22 @@ export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(contexto: ExecutionContext): boolean {
-    const requeridos = this.reflector.getAllAndOverride<string[] | undefined>(ROLES, [
-      contexto.getHandler(),
-      contexto.getClass(),
-    ]);
-    if (!requeridos?.length || contexto.getType<string>() !== 'graphql') return true;
+    const requeridos = this.reflector.getAllAndOverride<string[] | undefined>(
+      ROLES,
+      [contexto.getHandler(), contexto.getClass()],
+    );
+    if (!requeridos?.length || contexto.getType<string>() !== 'graphql')
+      return true;
 
-    const { req } = GqlExecutionContext.create(contexto).getContext<ContextoGraphql>();
+    const { req } =
+      GqlExecutionContext.create(contexto).getContext<ContextoGraphql>();
     const usuario = req.usuario;
-    if (usuario && rolesEfectivos(usuario.roles, usuario.azp).some((rol) => requeridos.includes(rol))) {
+    if (
+      usuario &&
+      rolesEfectivos(usuario.roles, usuario.azp).some((rol) =>
+        requeridos.includes(rol),
+      )
+    ) {
       return true;
     }
     throw new GraphQLError('Sin permiso', {

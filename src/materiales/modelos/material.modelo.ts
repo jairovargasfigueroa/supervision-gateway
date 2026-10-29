@@ -1,4 +1,11 @@
-import { Field, Float, ID, Int, ObjectType, registerEnumType } from '@nestjs/graphql';
+import {
+  Field,
+  Float,
+  ID,
+  Int,
+  ObjectType,
+  registerEnumType,
+} from '@nestjs/graphql';
 
 // Tipos de docs/contratos.md (SDL esperado): mismos nombres que el JSON de Materiales (GET /materiales).
 

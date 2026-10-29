@@ -20,7 +20,13 @@ const ENTRADA = {
   ubicacion: 'Av. Banzer 4to anillo, Santa Cruz',
   fechaInicio: '2026-11-01',
   asignaciones: ASIGNACIONES,
-  contrato: { monto: 357425, plazoDias: 300, anticipoPct: 10, retencionPct: 7, firmadoEn: '2026-10-20' },
+  contrato: {
+    monto: 357425,
+    plazoDias: 300,
+    anticipoPct: 10,
+    retencionPct: 7,
+    firmadoEn: '2026-10-20',
+  },
   partidas: [
     {
       codigo: 'P-01',
@@ -43,7 +49,13 @@ const OBRA_REST = {
   motivoRechazoContrato: null,
   fechaInicio: ENTRADA.fechaInicio,
   asignaciones: ASIGNACIONES,
-  contrato: { contratoId: null, monto: 357425, plazoDias: 300, anticipoPct: 10, retencionPct: 7 },
+  contrato: {
+    contratoId: null,
+    monto: 357425,
+    plazoDias: 300,
+    anticipoPct: 10,
+    retencionPct: 7,
+  },
   avancePct: 0,
   plazoPct: 0,
   enRiesgo: false,
@@ -99,10 +111,18 @@ describe('Registrar obra (e2e)', () => {
       let cuerpo = '';
       req.on('data', (parte: Buffer) => (cuerpo += parte.toString()));
       req.on('end', () => {
-        pedidosObras.push({ metodo: req.method!, ruta: req.url!, encabezados: req.headers, cuerpo });
+        pedidosObras.push({
+          metodo: req.method!,
+          ruta: req.url!,
+          encabezados: req.headers,
+          cuerpo,
+        });
         const { estado, cuerpo: respuesta } = responderObras();
         res.statusCode = estado;
-        res.setHeader('content-type', estado >= 400 ? 'application/problem+json' : 'application/json');
+        res.setHeader(
+          'content-type',
+          estado >= 400 ? 'application/problem+json' : 'application/json',
+        );
         res.end(JSON.stringify(respuesta));
       });
     });
@@ -113,10 +133,19 @@ describe('Registrar obra (e2e)', () => {
         res.statusCode = 500;
         res.end('{}');
       } else if (req.url!.endsWith('/protocol/openid-connect/token')) {
-        res.end(JSON.stringify({ access_token: 'token-gateway', expires_in: 300 }));
+        res.end(
+          JSON.stringify({ access_token: 'token-gateway', expires_in: 300 }),
+        );
       } else {
         const id = req.url!.split('/').pop();
-        res.end(JSON.stringify({ id, firstName: 'Usuario', lastName: id!.slice(-1), email: `${id}@ejemplo.bo` }));
+        res.end(
+          JSON.stringify({
+            id,
+            firstName: 'Usuario',
+            lastName: id!.slice(-1),
+            email: `${id}@ejemplo.bo`,
+          }),
+        );
       }
     });
     process.env.OBRAS_URL = await escuchar(obras);
@@ -147,7 +176,11 @@ describe('Registrar obra (e2e)', () => {
     }
   });
 
-  const enviar = async (query: string, variables: Record<string, unknown>, roles: string[]) =>
+  const enviar = async (
+    query: string,
+    variables: Record<string, unknown>,
+    roles: string[],
+  ) =>
     request(app.getHttpServer())
       .post('/graphql')
       .set(
@@ -185,8 +218,16 @@ describe('Registrar obra (e2e)', () => {
     });
 
     it('acepta partidas sin insumos ni meses (la 003 todavía no da el catálogo)', async () => {
-      const partida = { codigo: 'P-01', nombre: 'Losa', unidad: 'm2', cantidadContratada: 1, precioUnitario: 357425 };
-      await enviar(MUTACION, { entrada: { ...ENTRADA, partidas: [partida] } }, ['admin']);
+      const partida = {
+        codigo: 'P-01',
+        nombre: 'Losa',
+        unidad: 'm2',
+        cantidadContratada: 1,
+        precioUnitario: 357425,
+      };
+      await enviar(MUTACION, { entrada: { ...ENTRADA, partidas: [partida] } }, [
+        'admin',
+      ]);
       expect(JSON.parse(pedidosObras[0].cuerpo).partidas).toEqual([partida]);
     });
 
@@ -213,34 +254,58 @@ describe('Registrar obra (e2e)', () => {
       expect(pedidosObras).toHaveLength(1);
     });
 
-    it.each(['CODIGO_PARTIDA_REPETIDO', 'INSUMO_REPETIDO', 'CONTRATO_INVALIDO'])(
-      '422 %s llega con su codigo y los errores por campo',
-      async (codigo) => {
-        const errores = [{ campo: 'partidas[1].codigo', mensaje: 'Revisar' }];
-        responderObras = () => ({ estado: 422, cuerpo: { title: 'Regla', status: 422, codigo, errores } });
-        const respuesta = await enviar(MUTACION, { entrada: ENTRADA }, ['admin']);
-        expect(respuesta.body.errors[0].extensions).toMatchObject({ codigo, servicio: 'obras', estado: 422, errores });
-      },
-    );
+    it.each([
+      'CODIGO_PARTIDA_REPETIDO',
+      'INSUMO_REPETIDO',
+      'CONTRATO_INVALIDO',
+    ])('422 %s llega con su codigo y los errores por campo', async (codigo) => {
+      const errores = [{ campo: 'partidas[1].codigo', mensaje: 'Revisar' }];
+      responderObras = () => ({
+        estado: 422,
+        cuerpo: { title: 'Regla', status: 422, codigo, errores },
+      });
+      const respuesta = await enviar(MUTACION, { entrada: ENTRADA }, ['admin']);
+      expect(respuesta.body.errors[0].extensions).toMatchObject({
+        codigo,
+        servicio: 'obras',
+        estado: 422,
+        errores,
+      });
+    });
 
     it('un 500 de Obras no se reintenta (es una mutación)', async () => {
-      responderObras = () => ({ estado: 500, cuerpo: { title: 'Error', status: 500, codigo: 'ERROR_INTERNO' } });
+      responderObras = () => ({
+        estado: 500,
+        cuerpo: { title: 'Error', status: 500, codigo: 'ERROR_INTERNO' },
+      });
       const respuesta = await enviar(MUTACION, { entrada: ENTRADA }, ['admin']);
       expect(respuesta.body.errors[0].extensions.codigo).toBe('ERROR_INTERNO');
       expect(pedidosObras).toHaveLength(1);
     });
 
-    it.each([['residente'], ['gerente']])('%s recibe SIN_PERMISO (403) sin llamar a Obras', async (rol) => {
-      const respuesta = await enviar(MUTACION, { entrada: ENTRADA }, [rol]);
-      expect(respuesta.body.data).toBeNull();
-      expect(respuesta.body.errors[0].extensions).toMatchObject({ codigo: 'SIN_PERMISO', estado: 403 });
-      expect(pedidosObras).toHaveLength(0);
-    });
+    it.each([['residente'], ['gerente']])(
+      '%s recibe SIN_PERMISO (403) sin llamar a Obras',
+      async (rol) => {
+        const respuesta = await enviar(MUTACION, { entrada: ENTRADA }, [rol]);
+        expect(respuesta.body.data).toBeNull();
+        expect(respuesta.body.errors[0].extensions).toMatchObject({
+          codigo: 'SIN_PERMISO',
+          estado: 403,
+        });
+        expect(pedidosObras).toHaveLength(0);
+      },
+    );
 
     it('si Obras responde 403, también llega SIN_PERMISO', async () => {
-      responderObras = () => ({ estado: 403, cuerpo: { title: 'Prohibido', status: 403 } });
+      responderObras = () => ({
+        estado: 403,
+        cuerpo: { title: 'Prohibido', status: 403 },
+      });
       const respuesta = await enviar(MUTACION, { entrada: ENTRADA }, ['admin']);
-      expect(respuesta.body.errors[0].extensions).toMatchObject({ codigo: 'SIN_PERMISO', servicio: 'obras' });
+      expect(respuesta.body.errors[0].extensions).toMatchObject({
+        codigo: 'SIN_PERMISO',
+        servicio: 'obras',
+      });
     });
   });
 
@@ -257,12 +322,18 @@ describe('Registrar obra (e2e)', () => {
     it('devuelve el detalle de Obras con las asignaciones resueltas en Keycloak', async () => {
       responderObras = () => ({
         estado: 200,
-        cuerpo: { ...OBRA_REST, motivoRechazoContrato: 'El monto del contrato debe ser mayor a 0' },
+        cuerpo: {
+          ...OBRA_REST,
+          motivoRechazoContrato: 'El monto del contrato debe ser mayor a 0',
+        },
       });
       const respuesta = await enviar(CONSULTA, { id: ID_OBRA }, ['admin']);
 
       expect(respuesta.body.errors).toBeUndefined();
-      expect(pedidosObras[0]).toMatchObject({ metodo: 'GET', ruta: `/obras/${ID_OBRA}` });
+      expect(pedidosObras[0]).toMatchObject({
+        metodo: 'GET',
+        ruta: `/obras/${ID_OBRA}`,
+      });
       expect(respuesta.body.data.obra).toMatchObject({
         id: ID_OBRA,
         estado: 'SIN_CONTRATO',
@@ -276,21 +347,33 @@ describe('Registrar obra (e2e)', () => {
         almacenero: { nombre: 'Usuario 5' },
         cliente: { nombre: 'Usuario 6' },
         contrato: { contratoId: null, monto: 357425 },
-        partidas: [{ id: 'p1', codigo: 'P-01', ejecutadaAcumulada: 0, avancePct: 0 }],
+        partidas: [
+          { id: 'p1', codigo: 'P-01', ejecutadaAcumulada: 0, avancePct: 0 },
+        ],
       });
-      expect(pedidosKeycloak).toContain(`/admin/realms/supervision/users/${ASIGNACIONES.residenteId}`);
+      expect(pedidosKeycloak).toContain(
+        `/admin/realms/supervision/users/${ASIGNACIONES.residenteId}`,
+      );
     });
 
     it('sin pedir asignaciones no llama a Keycloak', async () => {
       responderObras = () => ({ estado: 200, cuerpo: OBRA_REST });
-      await enviar('query ($id: ID!) { obra(id: $id) { id estado } }', { id: ID_OBRA }, ['residente']);
+      await enviar(
+        'query ($id: ID!) { obra(id: $id) { id estado } }',
+        { id: ID_OBRA },
+        ['residente'],
+      );
       expect(pedidosKeycloak).toEqual([]);
     });
 
     it('404 OBRA_NO_ENCONTRADA: obra vuelve null con el codigo en extensions', async () => {
       responderObras = () => ({
         estado: 404,
-        cuerpo: { title: 'Obra no encontrada', status: 404, codigo: 'OBRA_NO_ENCONTRADA' },
+        cuerpo: {
+          title: 'Obra no encontrada',
+          status: 404,
+          codigo: 'OBRA_NO_ENCONTRADA',
+        },
       });
       const respuesta = await enviar(CONSULTA, { id: 'otra' }, ['residente']);
       expect(respuesta.body.data).toEqual({ obra: null });
@@ -312,9 +395,11 @@ describe('Registrar obra (e2e)', () => {
         almacenero: null,
         cliente: null,
       });
-      expect(respuesta.body.errors.map((e: { extensions: { servicio: string } }) => e.extensions.servicio)).toEqual(
-        Array(4).fill('keycloak'),
-      );
+      expect(
+        respuesta.body.errors.map(
+          (e: { extensions: { servicio: string } }) => e.extensions.servicio,
+        ),
+      ).toEqual(Array(4).fill('keycloak'));
     });
 
     it('maestro (desde la app) recibe SIN_PERMISO', async () => {

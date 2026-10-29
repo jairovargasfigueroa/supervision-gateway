@@ -75,21 +75,41 @@ export interface RegistrarObraRest {
 export class ObrasCliente {
   constructor(private readonly cliente: ClienteServicio) {}
 
-  listar(filtros: { estado?: EstadoObra; busqueda?: string }, contexto: ContextoGraphql): Promise<ObraResumen[]> {
+  listar(
+    filtros: { estado?: EstadoObra; busqueda?: string },
+    contexto: ContextoGraphql,
+  ): Promise<ObraResumen[]> {
     const parametros = new URLSearchParams();
     if (filtros.estado) parametros.set('estado', filtros.estado);
     if (filtros.busqueda) parametros.set('busqueda', filtros.busqueda);
     const consulta = parametros.size ? `?${parametros.toString()}` : '';
-    return this.cliente.consultar<ObraResumen[]>('obras', `/obras${consulta}`, contexto);
+    return this.cliente.consultar<ObraResumen[]>(
+      'obras',
+      `/obras${consulta}`,
+      contexto,
+    );
   }
 
   /** `GET /obras/{id}`; si el usuario no la ve, Obras responde 404 OBRA_NO_ENCONTRADA. */
   obtener(id: string, contexto: ContextoGraphql): Promise<ObraRest> {
-    return this.cliente.consultar<ObraRest>('obras', `/obras/${encodeURIComponent(id)}`, contexto);
+    return this.cliente.consultar<ObraRest>(
+      'obras',
+      `/obras/${encodeURIComponent(id)}`,
+      contexto,
+    );
   }
 
   /** `POST /obras` (002): sin reintento; los 422 llegan con su codigo (PRESUPUESTO_NO_COINCIDE, …). */
-  registrar(entrada: RegistrarObraRest, contexto: ContextoGraphql): Promise<ObraRest> {
-    return this.cliente.enviar<ObraRest>('obras', 'POST', '/obras', entrada, contexto);
+  registrar(
+    entrada: RegistrarObraRest,
+    contexto: ContextoGraphql,
+  ): Promise<ObraRest> {
+    return this.cliente.enviar<ObraRest>(
+      'obras',
+      'POST',
+      '/obras',
+      entrada,
+      contexto,
+    );
   }
 }

@@ -1,4 +1,13 @@
-import { Args, Context, ID, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
+import {
+  Args,
+  Context,
+  ID,
+  Mutation,
+  Parent,
+  Query,
+  ResolveField,
+  Resolver,
+} from '@nestjs/graphql';
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
 import { Roles } from '../comun/auth/roles.decorator.js';
 import { KeycloakAdminCliente } from '../comun/keycloak/keycloak-admin.cliente.js';
@@ -22,7 +31,8 @@ export class ObrasResolver {
   @Query(() => [ObraResumen])
   obras(
     @Context() contexto: ContextoGraphql,
-    @Args('estado', { type: () => EstadoObra, nullable: true }) estado?: EstadoObra,
+    @Args('estado', { type: () => EstadoObra, nullable: true })
+    estado?: EstadoObra,
     @Args('busqueda', { nullable: true }) busqueda?: string,
   ): Promise<ObraResumen[]> {
     return this.obrasCliente.listar({ estado, busqueda }, contexto);
@@ -31,7 +41,10 @@ export class ObrasResolver {
   /** Detalle de una obra. Si el usuario no la ve, Obras responde 404 y el campo vuelve null con OBRA_NO_ENCONTRADA. */
   @Roles('admin', 'gerente', 'residente')
   @Query(() => Obra, { nullable: true })
-  obra(@Context() contexto: ContextoGraphql, @Args('id', { type: () => ID }) id: string): Promise<ObraRest> {
+  obra(
+    @Context() contexto: ContextoGraphql,
+    @Args('id', { type: () => ID }) id: string,
+  ): Promise<ObraRest> {
     return this.obrasCliente.obtener(id, contexto);
   }
 
@@ -40,7 +53,8 @@ export class ObrasResolver {
   @Mutation(() => Obra)
   registrarObra(
     @Context() contexto: ContextoGraphql,
-    @Args('entrada', { type: () => RegistrarObraEntrada }) entrada: RegistrarObraEntrada,
+    @Args('entrada', { type: () => RegistrarObraEntrada })
+    entrada: RegistrarObraEntrada,
   ): Promise<ObraRest> {
     return this.obrasCliente.registrar(entrada, contexto);
   }
@@ -48,26 +62,42 @@ export class ObrasResolver {
   // Asignaciones: cada una se pide a Keycloak por separado; si Keycloak falla, solo ese campo vuelve null.
 
   @ResolveField(() => Usuario, { nullable: true })
-  residente(@Parent() obra: ObraRest, @Context() contexto: ContextoGraphql): Promise<Usuario | null> {
+  residente(
+    @Parent() obra: ObraRest,
+    @Context() contexto: ContextoGraphql,
+  ): Promise<Usuario | null> {
     return this.usuario(obra, 'residenteId', contexto);
   }
 
   @ResolveField(() => Usuario, { nullable: true })
-  maestro(@Parent() obra: ObraRest, @Context() contexto: ContextoGraphql): Promise<Usuario | null> {
+  maestro(
+    @Parent() obra: ObraRest,
+    @Context() contexto: ContextoGraphql,
+  ): Promise<Usuario | null> {
     return this.usuario(obra, 'maestroId', contexto);
   }
 
   @ResolveField(() => Usuario, { nullable: true })
-  almacenero(@Parent() obra: ObraRest, @Context() contexto: ContextoGraphql): Promise<Usuario | null> {
+  almacenero(
+    @Parent() obra: ObraRest,
+    @Context() contexto: ContextoGraphql,
+  ): Promise<Usuario | null> {
     return this.usuario(obra, 'almaceneroId', contexto);
   }
 
   @ResolveField(() => Usuario, { nullable: true })
-  cliente(@Parent() obra: ObraRest, @Context() contexto: ContextoGraphql): Promise<Usuario | null> {
+  cliente(
+    @Parent() obra: ObraRest,
+    @Context() contexto: ContextoGraphql,
+  ): Promise<Usuario | null> {
     return this.usuario(obra, 'clienteId', contexto);
   }
 
-  private async usuario(obra: ObraRest, campo: Asignacion, contexto: ContextoGraphql): Promise<Usuario | null> {
+  private async usuario(
+    obra: ObraRest,
+    campo: Asignacion,
+    contexto: ContextoGraphql,
+  ): Promise<Usuario | null> {
     const id = obra.asignaciones?.[campo];
     return id ? this.keycloak.usuarioPorId(id, contexto.req.requestId) : null;
   }
