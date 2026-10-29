@@ -7,6 +7,8 @@ export interface PeticionGateway extends Request {
   usuario?: UsuarioToken;
   /** Token del usuario tal como llegó; se reenvía a los servicios. */
   token?: string;
+  /** Segundos que debe esperar el usuario si pasó el límite de peticiones (0 si puede seguir). */
+  esperaLimite?: number;
 }
 
 /** Contexto de cada consulta GraphQL. */
