@@ -44,7 +44,7 @@ export async function errorDesdeRespuesta(respuesta: Response, servicio: Servici
 }
 
 /** El servicio no respondió (caído o más lento que el tiempo máximo): solo sus campos vuelven en null. */
-export function servicioNoDisponible(servicio: Servicio): GraphQLError {
+export function servicioNoDisponible(servicio: Servicio | 'keycloak'): GraphQLError {
   return new GraphQLError(`${servicio} no está disponible`, {
     extensions: { codigo: 'SERVICIO_NO_DISPONIBLE', servicio, estado: 503 },
   });

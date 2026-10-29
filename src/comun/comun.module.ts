@@ -1,8 +1,10 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ClienteServicio } from './http/cliente-servicio.js';
+import { KeycloakAdminCliente } from './keycloak/keycloak-admin.cliente.js';
+import { UsuariosResolver } from './keycloak/usuarios.resolver.js';
 
-/** Lo que usan todos los módulos de área: el cliente REST hacia los servicios. */
+/** Lo que usan todos los módulos de área: el cliente REST hacia los servicios y la API de administración de Keycloak. */
 @Global()
 @Module({
   providers: [
@@ -20,7 +22,20 @@ import { ClienteServicio } from './http/cliente-servicio.js';
           tiempoMaximoMs: 3000,
         }),
     },
+    {
+      provide: KeycloakAdminCliente,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) =>
+        new KeycloakAdminCliente({
+          url: config.get('KEYCLOAK_URL', 'http://localhost:8080'),
+          realm: config.get('KEYCLOAK_REALM', 'supervision'),
+          clientId: config.get('KEYCLOAK_GATEWAY_CLIENT_ID', 'gateway'),
+          clientSecret: config.get('KEYCLOAK_GATEWAY_CLIENT_SECRET', ''),
+          tiempoMaximoMs: 3000,
+        }),
+    },
+    UsuariosResolver,
   ],
-  exports: [ClienteServicio],
+  exports: [ClienteServicio, KeycloakAdminCliente],
 })
 export class ComunModule {}
