@@ -36,6 +36,13 @@ export interface PlanillaRest {
   fotoIds: string[];
 }
 
+/** Cuerpo de `PUT /planillas/{id}` (mismo JSON que la entrada GraphQL `GuardarPlanillaEntrada`). */
+export interface GuardarPlanillaRest {
+  version: number;
+  lineas: { partidaId: string; cantidadPeriodo: number }[];
+  fotoIds: string[];
+}
+
 /** Llamadas REST a Obras para las planillas (docs/contratos.md, «Consume»). Los errores llegan con su `codigo`. */
 @Injectable()
 export class PlanillasCliente {
@@ -58,6 +65,51 @@ export class PlanillasCliente {
     return this.cliente.consultar<PlanillaRest>(
       'obras',
       `/planillas/${encodeURIComponent(id)}`,
+      contexto,
+    );
+  }
+
+  /** `POST /obras/{obraId}/planillas` (sin reintento): 409 PLANILLA_ABIERTA_EXISTE, 422 PERIODO_NO_POSTERIOR, … */
+  crear(
+    obraId: string,
+    periodo: string,
+    contexto: ContextoGraphql,
+  ): Promise<PlanillaRest> {
+    return this.cliente.enviar<PlanillaRest>(
+      'obras',
+      'POST',
+      `/obras/${encodeURIComponent(obraId)}/planillas`,
+      { periodo },
+      contexto,
+    );
+  }
+
+  /** `PUT /planillas/{id}` (sin reintento): 409 VERSION_DESACTUALIZADA, 422 SUPERA_CANTIDAD_CONTRATADA con errores[], … */
+  guardar(
+    id: string,
+    entrada: GuardarPlanillaRest,
+    contexto: ContextoGraphql,
+  ): Promise<PlanillaRest> {
+    return this.cliente.enviar<PlanillaRest>(
+      'obras',
+      'PUT',
+      `/planillas/${encodeURIComponent(id)}`,
+      entrada,
+      contexto,
+    );
+  }
+
+  /** `POST /planillas/{id}/presentar` (sin reintento): 409 VERSION_DESACTUALIZADA, 422 SUBTOTAL_CERO, … */
+  presentar(
+    id: string,
+    version: number,
+    contexto: ContextoGraphql,
+  ): Promise<PlanillaRest> {
+    return this.cliente.enviar<PlanillaRest>(
+      'obras',
+      'POST',
+      `/planillas/${encodeURIComponent(id)}/presentar`,
+      { version },
       contexto,
     );
   }

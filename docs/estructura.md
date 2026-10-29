@@ -32,8 +32,9 @@ src/
     modelos/             material.modelo.ts (Material, Atributo, MaterialesPagina, enum TipoMaterial), stock-material.modelo.ts (StockMaterial, enum EstadoStock)
     entradas/            material.entrada.ts (MaterialEntrada, AtributoEntrada)
     materiales.module.ts
-  planillas/             007: planillas.cliente.ts (GET /obras/{id}/planillas, GET /planillas/{id}), planillas.resolver.ts (planilla(id) y Obra.planillas)
+  planillas/             007: planillas.cliente.ts (GET /obras/{id}/planillas, GET /planillas/{id}, POST /obras/{id}/planillas, PUT /planillas/{id}, POST /planillas/{id}/presentar), planillas.resolver.ts (planilla(id), crearPlanilla, guardarPlanilla, presentarPlanilla y Obra.planillas)
     modelos/             planilla.modelo.ts (Planilla, LineaPlanilla, PlanillaResumen)
+    entradas/            guardar-planilla.entrada.ts (GuardarPlanillaEntrada, LineaEntrada)
     planillas.module.ts
   finanzas/              006: finanzas.cliente.ts (GET /contratos?obraId=, GET /cobros?obraId=&tamano=100, con DataLoader), finanzas.resolver.ts (Obra.finanzas y Obra.cobros: null sin error si el rol no es admin ni gerente)
     modelos/             finanzas-obra.modelo.ts (FinanzasObra), cobro.modelo.ts (Cobro, enum EstadoCobro)

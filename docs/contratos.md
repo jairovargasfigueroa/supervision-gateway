@@ -150,6 +150,7 @@ type Mutation {
 ### Planillas (007)
 
 - `planilla(id)`: `GET /planillas/{id}` (Obras valida que el usuario vea la obra; si no, el campo vuelve `null` con el `codigo` de Obras). La misma planilla pedida con dos alias se pide una sola vez. `Planilla.cobro` llega con la 008.
+- `crearPlanilla` → `POST /obras/{obraId}/planillas` `{ periodo }`; `guardarPlanilla` → `PUT /planillas/{id}` con la entrada tal cual (`version`, `lineas`, `fotoIds`); `presentarPlanilla` → `POST /planillas/{id}/presentar` `{ version }`. Solo `residente` (el gateway responde `SIN_PERMISO` a otros roles sin llamar a Obras; que sea el residente asignado lo valida Obras). Sin reintento. Los errores de Obras llegan en `extensions.codigo` con `data: null`: `PLANILLA_ABIERTA_EXISTE`, `PERIODO_NO_POSTERIOR`, `PERIODO_FUTURO`, `OBRA_NO_EN_EJECUCION`, `VERSION_DESACTUALIZADA`, `PLANILLA_NO_EDITABLE`, `SUPERA_CANTIDAD_CONTRATADA` (con `extensions.errores[]`, `campo` = `partidaId`), `FOTO_FUERA_DEL_PERIODO` y `SUBTOTAL_CERO`.
 
 Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, reportes por voz) en sus especificaciones.
 
