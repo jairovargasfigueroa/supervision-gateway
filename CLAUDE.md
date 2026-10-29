@@ -4,7 +4,7 @@ Gateway GraphQL de la plataforma: la **única** entrada del ERP (BFF). Recibe la
 
 Parte de la «Plataforma de supervisión de obras». Si existe `../CLAUDE.md` (carpeta que agrupa todos los proyectos), léelo primero: tiene las reglas transversales, el plan y los contratos generales.
 
-**Estado:** fase 1. Valida el token de Keycloak (guard global), reenvía token y `X-Request-Id` con tiempo máximo de 3 s (`comun/`). Solo existe la consulta técnica `salud` (sin token). No implementes una funcionalidad sin su especificación aprobada en `docs/specs/`.
+**Estado:** fase 1. Valida el token de Keycloak (guard global), reenvía token y `X-Request-Id` con tiempo máximo de 3 s (`comun/`). Consultas: `salud` (sin token) y `obras` (esqueleto que camina de la 1.10; Obras devuelve la lista vacía hasta la 006). No implementes una funcionalidad sin su especificación aprobada en `docs/specs/`.
 
 ## Stack
 
