@@ -18,14 +18,15 @@ src/
     auth/                jwt.guard.ts (guard global), verificador-token.ts (jose + JWKS: firma, emisor, audiencia), publico.decorator.ts (@Publico: solo salud), limitador.ts (120 peticiones por minuto por usuario), roles.guard.ts (después del JwtGuard; SIN_PERMISO), roles.decorator.ts (@Roles), roles-efectivos.ts (regla del azp), contexto.ts (usuario + token en el contexto GraphQL)
     http/                cliente-servicio.ts (fetch con token, X-Request-Id, timeout 3 s, reintento en consultas), errores.ts (Problem Details → GraphQLError con extensions.codigo), request-id.middleware.ts
     keycloak/            keycloak-admin.cliente.ts (client credentials + caché), usuarios.resolver.ts (usuarios(rol)), usuario.modelo.ts (Usuario y enum Rol)
-    dataloaders/         dataloaders.ts (se crean por petición)
+    dataloaders/         dataloaders.ts (se crean por petición: cargador(contexto, nombre, carga), cadaUno, unaVezPorPeticion)
   obras/                 un módulo por área: obras, planillas, materiales, finanzas, tablero (y supervision en capas 4–5)
     obras.cliente.ts     llamadas REST a Obras
     obras.resolver.ts    consultas, mutaciones y @ResolveField
     modelos/             obra-resumen.modelo.ts, obra.modelo.ts (Obra, ContratoObra), partida.modelo.ts (Partida, Insumo), ... (@ObjectType)
     entradas/            registrar-obra.entrada.ts (@InputType)
     obras.module.ts
-  materiales/            003: materiales.cliente.ts (GET/POST/PUT /materiales, GET /obras/{id}/stock, PUT .../minimo), materiales.resolver.ts (materiales, stockObra, crearMaterial, actualizarMaterial, definirStockMinimo)
+  materiales/            003: materiales.cliente.ts (GET/POST/PUT /materiales, catálogo completo por petición, GET /obras/{id}/stock, PUT .../minimo), materiales.resolver.ts (materiales, stockObra, crearMaterial, actualizarMaterial, definirStockMinimo)
+                         006: insumos.resolver.ts (Insumo.material desde el catálogo)
     modelos/             material.modelo.ts (Material, Atributo, MaterialesPagina, enum TipoMaterial), stock-material.modelo.ts (StockMaterial, enum EstadoStock)
     entradas/            material.entrada.ts (MaterialEntrada, AtributoEntrada)
     materiales.module.ts
@@ -38,7 +39,8 @@ test/
   usuarios.e2e-spec.ts   usuarios(rol) contra un Keycloak simulado
   registrar-obra.e2e-spec.ts  registrarObra y obra(id): reenvío a POST /obras, errores 422 → extensions.codigo, SIN_PERMISO, 404, Keycloak caído
   materiales.e2e-spec.ts materiales, stockObra y mutaciones de la 003 contra un Materiales simulado: filtros y paginación, 409 CODIGO_MATERIAL_REPETIDO → extensions.codigo, 404/422, sin reintento en mutaciones, Materiales caído o lento, SIN_PERMISO
-  soporte/               tokens-prueba.ts (claves RSA locales en lugar del JWKS de Keycloak)
+  consultar-obra.e2e-spec.ts  006: obras y obra(id) completos contra Obras, Materiales, Finanzas y Keycloak simulados (DataLoader, respuesta parcial, servicio lento)
+  soporte/               tokens-prueba.ts (claves RSA locales en lugar del JWKS de Keycloak), servicio-simulado.ts (servidor REST de prueba con demora configurable)
 ```
 
 ## Reglas

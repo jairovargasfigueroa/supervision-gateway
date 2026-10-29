@@ -10,6 +10,7 @@ import {
 } from '@nestjs/graphql';
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
 import { Roles } from '../comun/auth/roles.decorator.js';
+import { cadaUno, cargador } from '../comun/dataloaders/dataloaders.js';
 import { KeycloakAdminCliente } from '../comun/keycloak/keycloak-admin.cliente.js';
 import { Usuario } from '../comun/keycloak/usuario.modelo.js';
 import { RegistrarObraEntrada } from './entradas/registrar-obra.entrada.js';
@@ -26,7 +27,7 @@ export class ObrasResolver {
     private readonly keycloak: KeycloakAdminCliente,
   ) {}
 
-  /** Lista de obras que ve el usuario; Obras filtra por visibilidad (la completa la 006). */
+  /** 006: obras que ve el usuario, con filtros e indicadores; Obras filtra por visibilidad y calcula avance y plazo. */
   @Roles('admin', 'gerente', 'residente')
   @Query(() => [ObraResumen])
   obras(
@@ -45,7 +46,12 @@ export class ObrasResolver {
     @Context() contexto: ContextoGraphql,
     @Args('id', { type: () => ID }) id: string,
   ): Promise<ObraRest> {
-    return this.obrasCliente.obtener(id, contexto);
+    // DataLoader de la petición: la misma obra pedida dos veces (alias) se pide una sola vez a Obras
+    return cargador<string, ObraRest>(
+      contexto,
+      'obras',
+      cadaUno((obraId) => this.obrasCliente.obtener(obraId, contexto)),
+    ).load(id);
   }
 
   /** 002: registra la obra en Obras (queda SIN_CONTRATO). Los errores llegan con el codigo de Obras. */

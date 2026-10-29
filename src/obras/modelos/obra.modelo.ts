@@ -22,8 +22,8 @@ export class ContratoObra {
 }
 
 /**
- * Detalle de la obra (docs/contratos.md). En la 002 se exponen los datos de Obras y las asignaciones (Keycloak);
- * finanzas, materialComparado, fotos, planillas y cobros llegan con sus funcionalidades (006, 007, 008).
+ * Detalle de la obra (docs/contratos.md). Los datos de Obras están aquí; los campos de otros servicios (asignaciones,
+ * finanzas, cobros, materialComparado, fotos) los agrega un @ResolveField cada uno. `planillas` llega con la 007.
  */
 @ObjectType()
 export class Obra {

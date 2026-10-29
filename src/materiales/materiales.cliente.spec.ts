@@ -96,6 +96,45 @@ describe('MaterialesCliente', () => {
     );
   });
 
+  it('catalogo pide de a 100 y las páginas restantes, y junta los materiales', async () => {
+    const { servicio, materiales } = crear();
+    servicio.consultar.mockImplementation((_s: string, ruta: string) => {
+      const pagina = Number(
+        new URLSearchParams(ruta.split('?')[1]).get('pagina'),
+      );
+      return Promise.resolve({
+        items: [{ id: `m${pagina}` }],
+        total: 250,
+        pagina,
+        tamano: 100,
+      });
+    });
+    const catalogo = await materiales.catalogo(contexto);
+    expect(catalogo.map((m) => m.id)).toEqual(['m1', 'm2', 'm3']);
+    expect(servicio.consultar.mock.calls.map((llamada) => llamada[1])).toEqual([
+      '/materiales?pagina=1&tamano=100',
+      '/materiales?pagina=2&tamano=100',
+      '/materiales?pagina=3&tamano=100',
+    ]);
+  });
+
+  it('catalogoPorId pide el catálogo una sola vez por petición', async () => {
+    const { servicio, materiales } = crear();
+    servicio.consultar.mockResolvedValue({
+      items: [{ id: 'm1', nombre: 'Cemento' }],
+      total: 1,
+      pagina: 1,
+      tamano: 100,
+    });
+    const peticion = {
+      req: { requestId: 'r2', token: 't' },
+    } as unknown as ContextoGraphql;
+    await materiales.catalogoPorId(peticion);
+    const porId = await materiales.catalogoPorId(peticion);
+    expect(porId.get('m1')).toMatchObject({ nombre: 'Cemento' });
+    expect(servicio.consultar).toHaveBeenCalledTimes(1);
+  });
+
   it('definirMinimo envía PUT /obras/{obraId}/stock/{materialId}/minimo con { minimo }', async () => {
     const { servicio, materiales } = crear();
     await materiales.definirMinimo('o1', 'm1', 100, contexto);

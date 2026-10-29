@@ -1,6 +1,6 @@
 import { Field, Float, ID, ObjectType } from '@nestjs/graphql';
 
-/** Material previsto por unidad de la partida. El campo `material` (catálogo de Materiales) llega con la 003. */
+/** Material previsto por unidad de la partida. `material` (catálogo de Materiales) lo resuelve InsumosResolver. */
 @ObjectType()
 export class Insumo {
   @Field(() => ID)
