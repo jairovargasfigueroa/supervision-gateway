@@ -167,6 +167,38 @@ describe('KeycloakAdminCliente', () => {
     expect(llamadas[0].ruta).toBe('/admin/realms/supervision/users/no-existe');
   });
 
+  it('usuarioPorId guarda el usuario 5 minutos y después lo vuelve a pedir', async () => {
+    reloj = 1_000_000;
+    responderAdmin = () => ({
+      estado: 200,
+      cuerpo: { id: 'u1', firstName: 'Ana', lastName: 'Rojas' },
+    });
+    const keycloak = cliente();
+    await expect(keycloak.usuarioPorId('u1', 'r')).resolves.toMatchObject({
+      nombre: 'Ana Rojas',
+    });
+    reloj += 5 * 60_000 - 1;
+    await keycloak.usuarioPorId('u1', 'r');
+    expect(llamadas).toHaveLength(1);
+    reloj += 1;
+    await keycloak.usuarioPorId('u1', 'r');
+    expect(llamadas).toHaveLength(2);
+  });
+
+  it('usuarioPorId no guarda los desconocidos ni los errores', async () => {
+    responderAdmin = () => ({ estado: 404 });
+    const keycloak = cliente();
+    await keycloak.usuarioPorId('u2', 'r');
+    await keycloak.usuarioPorId('u2', 'r');
+    expect(llamadas).toHaveLength(2);
+    responderAdmin = () => ({ estado: 403 });
+    await errorDe(keycloak.usuarioPorId('u3', 'r'));
+    responderAdmin = () => ({ estado: 200, cuerpo: { id: 'u3' } });
+    await expect(keycloak.usuarioPorId('u3', 'r')).resolves.toMatchObject({
+      id: 'u3',
+    });
+  });
+
   it('si Keycloak tarda más del tiempo máximo responde SERVICIO_NO_DISPONIBLE (keycloak)', async () => {
     responderAdmin = () => ({ estado: 200, cuerpo: [], demoraMs: 500 });
     const error = await errorDe(

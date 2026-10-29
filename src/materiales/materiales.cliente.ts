@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
+import { unaVezPorPeticion } from '../comun/dataloaders/dataloaders.js';
 import { ClienteServicio } from '../comun/http/cliente-servicio.js';
 import type { Material, MaterialesPagina } from './modelos/material.modelo.js';
 import type { StockMaterial } from './modelos/stock-material.modelo.js';
@@ -21,6 +22,13 @@ export interface MaterialRest {
   precioReferencial: number;
   activo?: boolean | null;
   atributos?: { nombre: string; valor: string }[] | null;
+}
+
+/** Consumo del periodo por partida y material (`GET /obras/{obraId}/consumos`). */
+export interface ConsumoRest {
+  partidaId: string;
+  materialId: string;
+  cantidad: number;
 }
 
 /** Llamadas REST a Materiales (docs/contratos.md, «Consume»). Los errores llegan con su `codigo` (ClienteServicio). */
@@ -46,6 +54,50 @@ export class MaterialesCliente {
     return this.cliente.consultar<MaterialesPagina>(
       'materiales',
       `/materiales${consulta}`,
+      contexto,
+    );
+  }
+
+  /**
+   * Catálogo completo (activos e inactivos), para poner nombre a los materiales de una obra (006). `GET /materiales`
+   * no filtra por id: se pide de a 100 (máximo de la paginación) y las páginas restantes en paralelo.
+   */
+  async catalogo(contexto: ContextoGraphql): Promise<Material[]> {
+    const tamano = 100;
+    const primera = await this.listar({ pagina: 1, tamano }, contexto);
+    const paginas = Math.ceil(primera.total / tamano);
+    const resto = await Promise.all(
+      Array.from({ length: Math.max(paginas - 1, 0) }, (_, i) =>
+        this.listar({ pagina: i + 2, tamano }, contexto),
+      ),
+    );
+    return [primera, ...resto].flatMap((pagina) => pagina.items);
+  }
+
+  /** El catálogo indexado por id, pedido una sola vez por petición (DataLoader de la petición). */
+  catalogoPorId(contexto: ContextoGraphql): Promise<Map<string, Material>> {
+    return unaVezPorPeticion(
+      contexto,
+      'catalogoMateriales',
+      async () =>
+        new Map(
+          (await this.catalogo(contexto)).map((material) => [
+            material.id,
+            material,
+          ]),
+        ),
+    );
+  }
+
+  /** `GET /obras/{obraId}/consumos?periodo=AAAA-MM` (006): suma de salidas por partida y material. */
+  consumos(
+    obraId: string,
+    periodo: string,
+    contexto: ContextoGraphql,
+  ): Promise<ConsumoRest[]> {
+    return this.cliente.consultar<ConsumoRest[]>(
+      'materiales',
+      `/obras/${encodeURIComponent(obraId)}/consumos?periodo=${encodeURIComponent(periodo)}`,
       contexto,
     );
   }

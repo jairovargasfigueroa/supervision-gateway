@@ -2,6 +2,7 @@ import {
   Args,
   Context,
   ID,
+  Int,
   Mutation,
   Parent,
   Query,
@@ -10,9 +11,11 @@ import {
 } from '@nestjs/graphql';
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
 import { Roles } from '../comun/auth/roles.decorator.js';
+import { cadaUno, cargador } from '../comun/dataloaders/dataloaders.js';
 import { KeycloakAdminCliente } from '../comun/keycloak/keycloak-admin.cliente.js';
 import { Usuario } from '../comun/keycloak/usuario.modelo.js';
 import { RegistrarObraEntrada } from './entradas/registrar-obra.entrada.js';
+import { FotosPagina } from './modelos/foto.modelo.js';
 import { EstadoObra, ObraResumen } from './modelos/obra-resumen.modelo.js';
 import { Obra } from './modelos/obra.modelo.js';
 import { ObrasCliente, type ObraRest } from './obras.cliente.js';
@@ -26,7 +29,7 @@ export class ObrasResolver {
     private readonly keycloak: KeycloakAdminCliente,
   ) {}
 
-  /** Lista de obras que ve el usuario; Obras filtra por visibilidad (la completa la 006). */
+  /** 006: obras que ve el usuario, con filtros e indicadores; Obras filtra por visibilidad y calcula avance y plazo. */
   @Roles('admin', 'gerente', 'residente')
   @Query(() => [ObraResumen])
   obras(
@@ -45,7 +48,12 @@ export class ObrasResolver {
     @Context() contexto: ContextoGraphql,
     @Args('id', { type: () => ID }) id: string,
   ): Promise<ObraRest> {
-    return this.obrasCliente.obtener(id, contexto);
+    // DataLoader de la petición: la misma obra pedida dos veces (alias) se pide una sola vez a Obras
+    return cargador<string, ObraRest>(
+      contexto,
+      'obras',
+      cadaUno((obraId) => this.obrasCliente.obtener(obraId, contexto)),
+    ).load(id);
   }
 
   /** 002: registra la obra en Obras (queda SIN_CONTRATO). Los errores llegan con el codigo de Obras. */
@@ -59,7 +67,24 @@ export class ObrasResolver {
     return this.obrasCliente.registrar(entrada, contexto);
   }
 
-  // Asignaciones: cada una se pide a Keycloak por separado; si Keycloak falla, solo ese campo vuelve null.
+  /** 005: galería de la obra (por partida si se indica). `registradoPor` lo resuelve FotosResolver. */
+  @ResolveField(() => FotosPagina)
+  fotos(
+    @Parent() obra: ObraRest,
+    @Context() contexto: ContextoGraphql,
+    @Args('partidaId', { type: () => ID, nullable: true })
+    partidaId: string | null | undefined,
+    @Args('pagina', { type: () => Int, defaultValue: 1 }) pagina: number,
+    @Args('tamano', { type: () => Int, defaultValue: 50 }) tamano: number,
+  ): Promise<FotosPagina> {
+    return this.obrasCliente.fotos(
+      obra.id,
+      { partidaId, pagina, tamano },
+      contexto,
+    );
+  }
+
+  // Asignaciones: nombres desde Keycloak (caché de 5 min y DataLoader); si Keycloak falla, solo ese campo vuelve null.
 
   @ResolveField(() => Usuario, { nullable: true })
   residente(
@@ -99,6 +124,6 @@ export class ObrasResolver {
     contexto: ContextoGraphql,
   ): Promise<Usuario | null> {
     const id = obra.asignaciones?.[campo];
-    return id ? this.keycloak.usuarioPorId(id, contexto.req.requestId) : null;
+    return id ? this.keycloak.usuarioEnPeticion(id, contexto) : null;
   }
 }

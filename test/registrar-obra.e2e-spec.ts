@@ -385,7 +385,17 @@ describe('Registrar obra (e2e)', () => {
     });
 
     it('si Keycloak falla, solo las asignaciones vuelven null y el resto de la obra llega', async () => {
-      responderObras = () => ({ estado: 200, cuerpo: OBRA_REST });
+      // Usuarios que no están en la caché de 5 minutos (las pruebas anteriores guardaron los de ASIGNACIONES)
+      const otras = Object.fromEntries(
+        Object.entries(ASIGNACIONES).map(([campo, id]) => [
+          campo,
+          id.replace('a0000000', 'a1111111'),
+        ]),
+      );
+      responderObras = () => ({
+        estado: 200,
+        cuerpo: { ...OBRA_REST, asignaciones: otras },
+      });
       keycloakFalla = true;
       const respuesta = await enviar(CONSULTA, { id: ID_OBRA }, ['admin']);
       expect(respuesta.body.data.obra).toMatchObject({

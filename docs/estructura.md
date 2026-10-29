@@ -15,20 +15,26 @@ src/
   salud/                 salud.resolver.ts
   comun/                 comun.module.ts (@Global: ClienteServicio)
     graphql/             limites.ts (regla de validación: profundidad 8, complejidad 1000)
-    auth/                jwt.guard.ts (guard global), verificador-token.ts (jose + JWKS: firma, emisor, audiencia), publico.decorator.ts (@Publico: solo salud), limitador.ts (120 peticiones por minuto por usuario), roles.guard.ts (después del JwtGuard; SIN_PERMISO), roles.decorator.ts (@Roles), roles-efectivos.ts (regla del azp), contexto.ts (usuario + token en el contexto GraphQL)
+    auth/                jwt.guard.ts (guard global), verificador-token.ts (jose + JWKS: firma, emisor, audiencia), publico.decorator.ts (@Publico: solo salud), limitador.ts (120 peticiones por minuto por usuario), roles.guard.ts (después del JwtGuard; SIN_PERMISO), roles.decorator.ts (@Roles), roles-efectivos.ts (regla del azp; tieneAlgunRol para campos que dependen del rol), contexto.ts (usuario + token en el contexto GraphQL)
     http/                cliente-servicio.ts (fetch con token, X-Request-Id, timeout 3 s, reintento en consultas), errores.ts (Problem Details → GraphQLError con extensions.codigo), request-id.middleware.ts
-    keycloak/            keycloak-admin.cliente.ts (client credentials + caché), usuarios.resolver.ts (usuarios(rol)), usuario.modelo.ts (Usuario y enum Rol)
-    dataloaders/         dataloaders.ts (se crean por petición)
+    keycloak/            keycloak-admin.cliente.ts (client credentials + caché del token; usuarios por id con caché de 5 min y DataLoader de la petición), usuarios.resolver.ts (usuarios(rol)), usuario.modelo.ts (Usuario y enum Rol)
+    dataloaders/         dataloaders.ts (se crean por petición: cargador(contexto, nombre, carga), cadaUno, unaVezPorPeticion)
   obras/                 un módulo por área: obras, planillas, materiales, finanzas, tablero (y supervision en capas 4–5)
-    obras.cliente.ts     llamadas REST a Obras
-    obras.resolver.ts    consultas, mutaciones y @ResolveField
-    modelos/             obra-resumen.modelo.ts, obra.modelo.ts (Obra, ContratoObra), partida.modelo.ts (Partida, Insumo), ... (@ObjectType)
+    obras.cliente.ts     llamadas REST a Obras (GET /obras, GET /obras/{id}, GET /obras/{id}/material-previsto, GET /obras/{id}/fotos, POST /obras); el módulo exporta ObrasCliente
+    obras.resolver.ts    consultas, mutaciones y @ResolveField (asignaciones, fotos)
+    fotos.resolver.ts    005: Foto.registradoPor (Keycloak)
+    modelos/             obra-resumen.modelo.ts, obra.modelo.ts (Obra, ContratoObra), partida.modelo.ts (Partida, Insumo), foto.modelo.ts (Foto, FotosPagina), ... (@ObjectType)
     entradas/            registrar-obra.entrada.ts (@InputType)
     obras.module.ts
-  materiales/            003: materiales.cliente.ts (GET/POST/PUT /materiales, GET /obras/{id}/stock, PUT .../minimo), materiales.resolver.ts (materiales, stockObra, crearMaterial, actualizarMaterial, definirStockMinimo)
+  materiales/            003: materiales.cliente.ts (GET/POST/PUT /materiales, catálogo completo por petición, GET /obras/{id}/stock, PUT .../minimo), materiales.resolver.ts (materiales, stockObra, crearMaterial, actualizarMaterial, definirStockMinimo)
+                         006: insumos.resolver.ts (Insumo.material desde el catálogo), material-comparado.resolver.ts (Obra.materialComparado), comparacion.ts (une previsto y consumos; diferencia y excedido), GET /obras/{id}/consumos
+    modelos/             comparacion-material.modelo.ts (ComparacionMaterial, FilaComparacion)
     modelos/             material.modelo.ts (Material, Atributo, MaterialesPagina, enum TipoMaterial), stock-material.modelo.ts (StockMaterial, enum EstadoStock)
     entradas/            material.entrada.ts (MaterialEntrada, AtributoEntrada)
     materiales.module.ts
+  finanzas/              006: finanzas.cliente.ts (GET /contratos?obraId=, GET /cobros?obraId=&tamano=100, con DataLoader), finanzas.resolver.ts (Obra.finanzas y Obra.cobros: null sin error si el rol no es admin ni gerente)
+    modelos/             finanzas-obra.modelo.ts (FinanzasObra), cobro.modelo.ts (Cobro, enum EstadoCobro)
+    finanzas.module.ts
 test/
   obras.e2e-spec.ts      GraphQL contra servicios simulados (servidores HTTP de prueba)
   app.e2e-spec.ts        salud, token y reenvío de token y X-Request-Id
@@ -38,7 +44,8 @@ test/
   usuarios.e2e-spec.ts   usuarios(rol) contra un Keycloak simulado
   registrar-obra.e2e-spec.ts  registrarObra y obra(id): reenvío a POST /obras, errores 422 → extensions.codigo, SIN_PERMISO, 404, Keycloak caído
   materiales.e2e-spec.ts materiales, stockObra y mutaciones de la 003 contra un Materiales simulado: filtros y paginación, 409 CODIGO_MATERIAL_REPETIDO → extensions.codigo, 404/422, sin reintento en mutaciones, Materiales caído o lento, SIN_PERMISO
-  soporte/               tokens-prueba.ts (claves RSA locales en lugar del JWKS de Keycloak)
+  consultar-obra.e2e-spec.ts  006: obras y obra(id) completos contra Obras, Materiales, Finanzas y Keycloak simulados (DataLoader, respuesta parcial, servicio lento)
+  soporte/               tokens-prueba.ts (claves RSA locales en lugar del JWKS de Keycloak), servicio-simulado.ts (servidor REST de prueba con demora configurable)
 ```
 
 ## Reglas

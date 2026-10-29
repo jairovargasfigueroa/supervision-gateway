@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
 import { ClienteServicio } from '../comun/http/cliente-servicio.js';
+import type { FotosPagina } from './modelos/foto.modelo.js';
 import type { EstadoObra, ObraResumen } from './modelos/obra-resumen.modelo.js';
 
 /** Detalle de la obra tal como lo devuelve Obras (`GET /obras/{id}` y `POST /obras`). */
@@ -70,6 +71,13 @@ export interface RegistrarObraRest {
   }[];
 }
 
+/** Material previsto del periodo (`GET /obras/{id}/material-previsto`, 006). */
+export interface MaterialPrevistoRest {
+  periodo: string;
+  hayPlanilla: boolean;
+  items: { partidaId: string; materialId: string; cantidadPrevista: number }[];
+}
+
 /** Llamadas REST a Obras (docs/contratos.md, «Consume»). Los errores llegan con su `codigo` (ClienteServicio). */
 @Injectable()
 export class ObrasCliente {
@@ -95,6 +103,36 @@ export class ObrasCliente {
     return this.cliente.consultar<ObraRest>(
       'obras',
       `/obras/${encodeURIComponent(id)}`,
+      contexto,
+    );
+  }
+
+  /** `GET /obras/{id}/material-previsto?periodo=AAAA-MM` (006): previsto 0 y `hayPlanilla: false` sin planilla. */
+  materialPrevisto(
+    id: string,
+    periodo: string,
+    contexto: ContextoGraphql,
+  ): Promise<MaterialPrevistoRest> {
+    return this.cliente.consultar<MaterialPrevistoRest>(
+      'obras',
+      `/obras/${encodeURIComponent(id)}/material-previsto?periodo=${encodeURIComponent(periodo)}`,
+      contexto,
+    );
+  }
+
+  /** `GET /obras/{id}/fotos?partidaId=&pagina=&tamano=` (005): página de fotos, de la más reciente a la más antigua. */
+  fotos(
+    id: string,
+    filtros: { partidaId?: string | null; pagina: number; tamano: number },
+    contexto: ContextoGraphql,
+  ): Promise<FotosPagina> {
+    const parametros = new URLSearchParams();
+    if (filtros.partidaId) parametros.set('partidaId', filtros.partidaId);
+    parametros.set('pagina', String(filtros.pagina));
+    parametros.set('tamano', String(filtros.tamano));
+    return this.cliente.consultar<FotosPagina>(
+      'obras',
+      `/obras/${encodeURIComponent(id)}/fotos?${parametros.toString()}`,
       contexto,
     );
   }

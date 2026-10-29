@@ -15,6 +15,7 @@ import {
 } from './comun/auth/verificador-token.js';
 import { ComunModule } from './comun/comun.module.js';
 import { RequestIdMiddleware } from './comun/http/request-id.middleware.js';
+import { FinanzasModule } from './finanzas/finanzas.module.js';
 import { MaterialesModule } from './materiales/materiales.module.js';
 import { ObrasModule } from './obras/obras.module.js';
 import { SaludResolver } from './salud/salud.resolver.js';
@@ -45,6 +46,7 @@ const enProduccion = process.env.NODE_ENV === 'production';
     ComunModule,
     ObrasModule,
     MaterialesModule,
+    FinanzasModule,
   ],
   providers: [
     SaludResolver,
