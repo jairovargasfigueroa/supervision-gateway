@@ -54,8 +54,10 @@ const ENTRADA = {
   atributos: [{ nombre: 'peso', valor: '50 kg' }],
 };
 
-const CAMPOS_MATERIAL = 'id codigo nombre tipo unidad unidadPlural precioReferencial activo atributos { nombre valor }';
-const CAMPOS_STOCK = 'materialId codigo nombre unidad unidadPlural cantidad minimo estado';
+const CAMPOS_MATERIAL =
+  'id codigo nombre tipo unidad unidadPlural precioReferencial activo atributos { nombre valor }';
+const CAMPOS_STOCK =
+  'materialId codigo nombre unidad unidadPlural cantidad minimo estado';
 
 const CONSULTA_MATERIALES = `query ($busqueda: String, $soloActivos: Boolean, $pagina: Int, $tamano: Int) {
   materiales(busqueda: $busqueda, soloActivos: $soloActivos, pagina: $pagina, tamano: $tamano) {
@@ -83,7 +85,11 @@ describe('Materiales (e2e)', () => {
   let app: INestApplication;
   let materiales: Server;
   let pedidos: Pedido[];
-  let responder: (pedido: Pedido) => { estado: number; cuerpo: unknown; esperaMs?: number };
+  let responder: (pedido: Pedido) => {
+    estado: number;
+    cuerpo: unknown;
+    esperaMs?: number;
+  };
   let firmar: Awaited<ReturnType<typeof crearClavesPrueba>>['firmar'];
 
   const escuchar = async (servidor: Server) => {
@@ -96,13 +102,21 @@ describe('Materiales (e2e)', () => {
       let cuerpo = '';
       req.on('data', (parte: Buffer) => (cuerpo += parte.toString()));
       req.on('end', () => {
-        const pedido = { metodo: req.method!, ruta: req.url!, encabezados: req.headers, cuerpo };
+        const pedido = {
+          metodo: req.method!,
+          ruta: req.url!,
+          encabezados: req.headers,
+          cuerpo,
+        };
         pedidos.push(pedido);
         const { estado, cuerpo: respuesta, esperaMs = 0 } = responder(pedido);
         setTimeout(() => {
           if (res.destroyed) return;
           res.statusCode = estado;
-          res.setHeader('content-type', estado >= 400 ? 'application/problem+json' : 'application/json');
+          res.setHeader(
+            'content-type',
+            estado >= 400 ? 'application/problem+json' : 'application/json',
+          );
           res.end(JSON.stringify(respuesta));
         }, esperaMs);
       });
@@ -130,7 +144,11 @@ describe('Materiales (e2e)', () => {
     materiales.close();
   });
 
-  const enviar = async (query: string, variables: Record<string, unknown>, roles: string[]) =>
+  const enviar = async (
+    query: string,
+    variables: Record<string, unknown>,
+    roles: string[],
+  ) =>
     request(app.getHttpServer())
       .post('/graphql')
       .set(
@@ -142,11 +160,23 @@ describe('Materiales (e2e)', () => {
 
   describe('materiales', () => {
     it('devuelve la página de Materiales y reenvía filtros, token y X-Request-Id', async () => {
-      responder = () => ({ estado: 200, cuerpo: { items: [MATERIAL_REST], total: 1, pagina: 1, tamano: 20 } });
-      const respuesta = await enviar(CONSULTA_MATERIALES, { busqueda: 'cem', soloActivos: true }, ['residente']);
+      responder = () => ({
+        estado: 200,
+        cuerpo: { items: [MATERIAL_REST], total: 1, pagina: 1, tamano: 20 },
+      });
+      const respuesta = await enviar(
+        CONSULTA_MATERIALES,
+        { busqueda: 'cem', soloActivos: true },
+        ['residente'],
+      );
 
       expect(respuesta.body.errors).toBeUndefined();
-      expect(respuesta.body.data.materiales).toEqual({ items: [MATERIAL_REST], total: 1, pagina: 1, tamano: 20 });
+      expect(respuesta.body.data.materiales).toEqual({
+        items: [MATERIAL_REST],
+        total: 1,
+        pagina: 1,
+        tamano: 20,
+      });
       expect(pedidos).toHaveLength(1);
       expect(pedidos[0]).toMatchObject({
         metodo: 'GET',
@@ -157,18 +187,35 @@ describe('Materiales (e2e)', () => {
     });
 
     it('pasa la página y el tamaño pedidos', async () => {
-      responder = () => ({ estado: 200, cuerpo: { items: [], total: 41, pagina: 3, tamano: 10 } });
-      const respuesta = await enviar(CONSULTA_MATERIALES, { pagina: 3, tamano: 10 }, ['gerente']);
-      expect(respuesta.body.data.materiales).toMatchObject({ total: 41, pagina: 3, tamano: 10 });
+      responder = () => ({
+        estado: 200,
+        cuerpo: { items: [], total: 41, pagina: 3, tamano: 10 },
+      });
+      const respuesta = await enviar(
+        CONSULTA_MATERIALES,
+        { pagina: 3, tamano: 10 },
+        ['gerente'],
+      );
+      expect(respuesta.body.data.materiales).toMatchObject({
+        total: 41,
+        pagina: 3,
+        tamano: 10,
+      });
       expect(pedidos[0].ruta).toBe('/materiales?pagina=3&tamano=10');
     });
 
     it('400 PAGINACION_INVALIDA de Materiales llega en extensions.codigo', async () => {
       responder = () => ({
         estado: 400,
-        cuerpo: { title: 'Paginación inválida', status: 400, codigo: 'PAGINACION_INVALIDA' },
+        cuerpo: {
+          title: 'Paginación inválida',
+          status: 400,
+          codigo: 'PAGINACION_INVALIDA',
+        },
       });
-      const respuesta = await enviar(CONSULTA_MATERIALES, { tamano: 500 }, ['admin']);
+      const respuesta = await enviar(CONSULTA_MATERIALES, { tamano: 500 }, [
+        'admin',
+      ]);
       expect(respuesta.body.data).toBeNull();
       expect(respuesta.body.errors[0].extensions).toMatchObject({
         codigo: 'PAGINACION_INVALIDA',
@@ -177,7 +224,10 @@ describe('Materiales (e2e)', () => {
     });
 
     it('si Materiales no responde, llega SERVICIO_NO_DISPONIBLE después de reintentar una vez', async () => {
-      responder = () => ({ estado: 503, cuerpo: { title: 'Caído', status: 503 } });
+      responder = () => ({
+        estado: 503,
+        cuerpo: { title: 'Caído', status: 503 },
+      });
       const respuesta = await enviar(CONSULTA_MATERIALES, {}, ['admin']);
       expect(respuesta.body.errors[0].extensions).toMatchObject({
         codigo: 'SERVICIO_NO_DISPONIBLE',
@@ -186,28 +236,45 @@ describe('Materiales (e2e)', () => {
       expect(pedidos).toHaveLength(2);
     });
 
-    it.each([['maestro'], ['almacenero']])('%s desde el ERP recibe SIN_PERMISO sin llamar a Materiales', async (rol) => {
-      const respuesta = await enviar(CONSULTA_MATERIALES, {}, [rol]);
-      expect(respuesta.body.errors[0].extensions).toMatchObject({ codigo: 'SIN_PERMISO', estado: 403 });
-      expect(pedidos).toHaveLength(0);
-    });
+    it.each([['maestro'], ['almacenero']])(
+      '%s desde el ERP recibe SIN_PERMISO sin llamar a Materiales',
+      async (rol) => {
+        const respuesta = await enviar(CONSULTA_MATERIALES, {}, [rol]);
+        expect(respuesta.body.errors[0].extensions).toMatchObject({
+          codigo: 'SIN_PERMISO',
+          estado: 403,
+        });
+        expect(pedidos).toHaveLength(0);
+      },
+    );
   });
 
   describe('stockObra', () => {
     it('devuelve las filas de stock con su estado', async () => {
       responder = () => ({ estado: 200, cuerpo: STOCK_REST });
-      const respuesta = await enviar(CONSULTA_STOCK, { obraId: ID_OBRA }, ['residente']);
+      const respuesta = await enviar(CONSULTA_STOCK, { obraId: ID_OBRA }, [
+        'residente',
+      ]);
       expect(respuesta.body.errors).toBeUndefined();
       expect(respuesta.body.data.stockObra).toEqual(STOCK_REST);
-      expect(pedidos[0]).toMatchObject({ metodo: 'GET', ruta: `/obras/${ID_OBRA}/stock` });
+      expect(pedidos[0]).toMatchObject({
+        metodo: 'GET',
+        ruta: `/obras/${ID_OBRA}/stock`,
+      });
     });
 
     it('404 OBRA_NO_ENCONTRADA (obra que el residente no ve) llega con su codigo', async () => {
       responder = () => ({
         estado: 404,
-        cuerpo: { title: 'Obra no encontrada', status: 404, codigo: 'OBRA_NO_ENCONTRADA' },
+        cuerpo: {
+          title: 'Obra no encontrada',
+          status: 404,
+          codigo: 'OBRA_NO_ENCONTRADA',
+        },
       });
-      const respuesta = await enviar(CONSULTA_STOCK, { obraId: 'otra' }, ['residente']);
+      const respuesta = await enviar(CONSULTA_STOCK, { obraId: 'otra' }, [
+        'residente',
+      ]);
       expect(respuesta.body.data).toBeNull();
       expect(respuesta.body.errors[0].extensions).toMatchObject({
         codigo: 'OBRA_NO_ENCONTRADA',
@@ -218,8 +285,12 @@ describe('Materiales (e2e)', () => {
 
     it('si Materiales tarda más de 3 s, llega SERVICIO_NO_DISPONIBLE', async () => {
       responder = () => ({ estado: 200, cuerpo: STOCK_REST, esperaMs: 3500 });
-      const respuesta = await enviar(CONSULTA_STOCK, { obraId: ID_OBRA }, ['admin']);
-      expect(respuesta.body.errors[0].extensions.codigo).toBe('SERVICIO_NO_DISPONIBLE');
+      const respuesta = await enviar(CONSULTA_STOCK, { obraId: ID_OBRA }, [
+        'admin',
+      ]);
+      expect(respuesta.body.errors[0].extensions.codigo).toBe(
+        'SERVICIO_NO_DISPONIBLE',
+      );
     }, 15000);
   });
 
@@ -257,14 +328,21 @@ describe('Materiales (e2e)', () => {
     });
 
     it('un 500 de Materiales no se reintenta (es una mutación)', async () => {
-      responder = () => ({ estado: 500, cuerpo: { title: 'Error', status: 500, codigo: 'ERROR_INTERNO' } });
+      responder = () => ({
+        estado: 500,
+        cuerpo: { title: 'Error', status: 500, codigo: 'ERROR_INTERNO' },
+      });
       const respuesta = await enviar(CREAR, { entrada: ENTRADA }, ['admin']);
       expect(respuesta.body.errors[0].extensions.codigo).toBe('ERROR_INTERNO');
       expect(pedidos).toHaveLength(1);
     });
 
     it('un tipo fuera del enum lo rechaza GraphQL sin llamar a Materiales', async () => {
-      const respuesta = await enviar(CREAR, { entrada: { ...ENTRADA, tipo: 'VIDRIO' } }, ['admin']);
+      const respuesta = await enviar(
+        CREAR,
+        { entrada: { ...ENTRADA, tipo: 'VIDRIO' } },
+        ['admin'],
+      );
       expect(respuesta.body.errors).toHaveLength(1);
       expect(pedidos).toHaveLength(0);
     });
@@ -272,13 +350,23 @@ describe('Materiales (e2e)', () => {
 
   describe('actualizarMaterial', () => {
     it('admin desactiva: PUT /materiales/{id} con el material completo', async () => {
-      responder = () => ({ estado: 200, cuerpo: { ...MATERIAL_REST, activo: false } });
+      responder = () => ({
+        estado: 200,
+        cuerpo: { ...MATERIAL_REST, activo: false },
+      });
       const entrada = { ...ENTRADA, codigo: 'CEM-IP30', activo: false };
-      const respuesta = await enviar(ACTUALIZAR, { id: MATERIAL_REST.id, entrada }, ['admin']);
+      const respuesta = await enviar(
+        ACTUALIZAR,
+        { id: MATERIAL_REST.id, entrada },
+        ['admin'],
+      );
 
       expect(respuesta.body.errors).toBeUndefined();
       expect(respuesta.body.data.actualizarMaterial.activo).toBe(false);
-      expect(pedidos[0]).toMatchObject({ metodo: 'PUT', ruta: `/materiales/${MATERIAL_REST.id}` });
+      expect(pedidos[0]).toMatchObject({
+        metodo: 'PUT',
+        ruta: `/materiales/${MATERIAL_REST.id}`,
+      });
       expect(JSON.parse(pedidos[0].cuerpo)).toEqual(entrada);
     });
 
@@ -286,9 +374,20 @@ describe('Materiales (e2e)', () => {
       [404, 'MATERIAL_NO_ENCONTRADO'],
       [409, 'CODIGO_MATERIAL_REPETIDO'],
     ])('%i %s llega con su codigo', async (estado, codigo) => {
-      responder = () => ({ estado, cuerpo: { title: 'Error', status: estado, codigo } });
-      const respuesta = await enviar(ACTUALIZAR, { id: 'x', entrada: ENTRADA }, ['admin']);
-      expect(respuesta.body.errors[0].extensions).toMatchObject({ codigo, servicio: 'materiales', estado });
+      responder = () => ({
+        estado,
+        cuerpo: { title: 'Error', status: estado, codigo },
+      });
+      const respuesta = await enviar(
+        ACTUALIZAR,
+        { id: 'x', entrada: ENTRADA },
+        ['admin'],
+      );
+      expect(respuesta.body.errors[0].extensions).toMatchObject({
+        codigo,
+        servicio: 'materiales',
+        estado,
+      });
     });
   });
 
@@ -316,9 +415,20 @@ describe('Materiales (e2e)', () => {
       [404, 'OBRA_NO_ENCONTRADA'],
       [404, 'MATERIAL_NO_ENCONTRADO'],
     ])('%i %s llega con su codigo', async (estado, codigo) => {
-      responder = () => ({ estado, cuerpo: { title: 'Error', status: estado, codigo } });
-      const respuesta = await enviar(DEFINIR_MINIMO, { obraId: ID_OBRA, materialId: 'm', minimo: 1 }, ['admin']);
-      expect(respuesta.body.errors[0].extensions).toMatchObject({ codigo, servicio: 'materiales', estado });
+      responder = () => ({
+        estado,
+        cuerpo: { title: 'Error', status: estado, codigo },
+      });
+      const respuesta = await enviar(
+        DEFINIR_MINIMO,
+        { obraId: ID_OBRA, materialId: 'm', minimo: 1 },
+        ['admin'],
+      );
+      expect(respuesta.body.errors[0].extensions).toMatchObject({
+        codigo,
+        servicio: 'materiales',
+        estado,
+      });
     });
   });
 
@@ -326,16 +436,26 @@ describe('Materiales (e2e)', () => {
     const MUTACIONES: [string, string, Record<string, unknown>][] = [
       ['crearMaterial', CREAR, { entrada: ENTRADA }],
       ['actualizarMaterial', ACTUALIZAR, { id: 'x', entrada: ENTRADA }],
-      ['definirStockMinimo', DEFINIR_MINIMO, { obraId: ID_OBRA, materialId: 'm', minimo: 1 }],
+      [
+        'definirStockMinimo',
+        DEFINIR_MINIMO,
+        { obraId: ID_OBRA, materialId: 'm', minimo: 1 },
+      ],
     ];
 
     for (const rol of ['residente', 'gerente']) {
-      it.each(MUTACIONES)(`${rol} en %s recibe SIN_PERMISO (403) sin llamar a Materiales`, async (_, query, vars) => {
-        const respuesta = await enviar(query, vars, [rol]);
-        expect(respuesta.body.data).toBeNull();
-        expect(respuesta.body.errors[0].extensions).toMatchObject({ codigo: 'SIN_PERMISO', estado: 403 });
-        expect(pedidos).toHaveLength(0);
-      });
+      it.each(MUTACIONES)(
+        `${rol} en %s recibe SIN_PERMISO (403) sin llamar a Materiales`,
+        async (_, query, vars) => {
+          const respuesta = await enviar(query, vars, [rol]);
+          expect(respuesta.body.data).toBeNull();
+          expect(respuesta.body.errors[0].extensions).toMatchObject({
+            codigo: 'SIN_PERMISO',
+            estado: 403,
+          });
+          expect(pedidos).toHaveLength(0);
+        },
+      );
     }
   });
 });

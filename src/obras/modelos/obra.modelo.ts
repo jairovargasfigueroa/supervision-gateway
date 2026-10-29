@@ -61,5 +61,10 @@ export class Obra {
   partidas: Partida[];
 
   /** Ids de Keycloak que manda Obras; no se exponen: residente, maestro, almacenero y cliente se resuelven en el resolver. */
-  asignaciones: { residenteId: string; maestroId: string; almaceneroId: string; clienteId: string };
+  asignaciones: {
+    residenteId: string;
+    maestroId: string;
+    almaceneroId: string;
+    clienteId: string;
+  };
 }

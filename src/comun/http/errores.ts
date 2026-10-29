@@ -22,7 +22,10 @@ interface ProblemDetails {
 }
 
 /** Convierte una respuesta de error (Problem Details) del servicio en un error GraphQL con extensions.codigo. */
-export async function errorDesdeRespuesta(respuesta: Response, servicio: Servicio): Promise<GraphQLError> {
+export async function errorDesdeRespuesta(
+  respuesta: Response,
+  servicio: Servicio,
+): Promise<GraphQLError> {
   let problema: ProblemDetails = {};
   if (respuesta.headers.get('content-type')?.includes('json')) {
     try {
@@ -32,7 +35,9 @@ export async function errorDesdeRespuesta(respuesta: Response, servicio: Servici
     }
   }
   const codigo =
-    problema.codigo ?? CODIGO_POR_ESTADO[respuesta.status] ?? (respuesta.status >= 500 ? 'ERROR_INTERNO' : 'DATOS_INVALIDOS');
+    problema.codigo ??
+    CODIGO_POR_ESTADO[respuesta.status] ??
+    (respuesta.status >= 500 ? 'ERROR_INTERNO' : 'DATOS_INVALIDOS');
   return new GraphQLError(problema.title ?? `Error en ${servicio}`, {
     extensions: {
       codigo,
@@ -44,7 +49,9 @@ export async function errorDesdeRespuesta(respuesta: Response, servicio: Servici
 }
 
 /** El servicio no respondió (caído o más lento que el tiempo máximo): solo sus campos vuelven en null. */
-export function servicioNoDisponible(servicio: Servicio | 'keycloak'): GraphQLError {
+export function servicioNoDisponible(
+  servicio: Servicio | 'keycloak',
+): GraphQLError {
   return new GraphQLError(`${servicio} no está disponible`, {
     extensions: { codigo: 'SERVICIO_NO_DISPONIBLE', servicio, estado: 503 },
   });

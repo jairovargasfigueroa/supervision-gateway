@@ -23,7 +23,9 @@ class ResolverPrueba {
 
   @Query(() => String)
   async eco(@Context() contexto: ContextoGraphql): Promise<string> {
-    return JSON.stringify(await this.cliente.consultar('obras', '/eco', contexto));
+    return JSON.stringify(
+      await this.cliente.consultar('obras', '/eco', contexto),
+    );
   }
 }
 
@@ -40,12 +42,17 @@ describe('Gateway (e2e)', () => {
       res.setHeader('content-type', 'application/json');
       res.end(JSON.stringify({ ok: true }));
     });
-    await new Promise<void>((listo) => obrasSimulado.listen(0, '127.0.0.1', listo));
+    await new Promise<void>((listo) =>
+      obrasSimulado.listen(0, '127.0.0.1', listo),
+    );
     process.env.OBRAS_URL = `http://127.0.0.1:${(obrasSimulado.address() as AddressInfo).port}`;
 
     const claves = await crearClavesPrueba();
     firmar = claves.firmar;
-    const modulo = await Test.createTestingModule({ imports: [AppModule], providers: [ResolverPrueba] })
+    const modulo = await Test.createTestingModule({
+      imports: [AppModule],
+      providers: [ResolverPrueba],
+    })
       .overrideProvider(VERIFICADOR_TOKEN)
       .useValue(claves.verificador)
       .compile();
@@ -65,7 +72,9 @@ describe('Gateway (e2e)', () => {
   };
 
   it('responde la consulta salud sin token', () => {
-    return graphql('{ salud }').expect(200).expect({ data: { salud: 'ok' } });
+    return graphql('{ salud }')
+      .expect(200)
+      .expect({ data: { salud: 'ok' } });
   });
 
   it('rechaza una consulta sin token con NO_AUTENTICADO', async () => {
@@ -80,14 +89,23 @@ describe('Gateway (e2e)', () => {
   });
 
   it('acepta un token válido y deja el usuario en el contexto', async () => {
-    const token = await firmar({ sub: 'u1', name: 'Daniela Roca Justiniano', realm_access: { roles: ['residente'] } });
+    const token = await firmar({
+      sub: 'u1',
+      name: 'Daniela Roca Justiniano',
+      realm_access: { roles: ['residente'] },
+    });
     const respuesta = await graphql('{ quienSoy }', token);
-    expect(respuesta.body).toEqual({ data: { quienSoy: 'Daniela Roca Justiniano' } });
+    expect(respuesta.body).toEqual({
+      data: { quienSoy: 'Daniela Roca Justiniano' },
+    });
   });
 
   it('reenvía el token y el X-Request-Id recibido al servicio', async () => {
     const token = await firmar({ sub: 'u1', name: 'Daniela' });
-    const respuesta = await graphql('{ eco }', token).set('X-Request-Id', 'desde-el-erp-1');
+    const respuesta = await graphql('{ eco }', token).set(
+      'X-Request-Id',
+      'desde-el-erp-1',
+    );
     expect(respuesta.body.data.eco).toBe('{"ok":true}');
     expect(respuesta.headers['x-request-id']).toBe('desde-el-erp-1');
     expect(recibidoEnObras.authorization).toBe(`Bearer ${token}`);
@@ -95,8 +113,13 @@ describe('Gateway (e2e)', () => {
   });
 
   it('crea un X-Request-Id si no viene y es el mismo que recibe el servicio', async () => {
-    const respuesta = await graphql('{ eco }', await firmar({ sub: 'u1', name: 'Daniela' }));
+    const respuesta = await graphql(
+      '{ eco }',
+      await firmar({ sub: 'u1', name: 'Daniela' }),
+    );
     expect(respuesta.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
-    expect(recibidoEnObras['x-request-id']).toBe(respuesta.headers['x-request-id']);
+    expect(recibidoEnObras['x-request-id']).toBe(
+      respuesta.headers['x-request-id'],
+    );
   });
 });

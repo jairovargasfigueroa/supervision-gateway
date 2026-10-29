@@ -3,7 +3,10 @@
  * En memoria: alcanza con una sola instancia del gateway, que es como corre hoy.
  */
 export class Limitador {
-  private readonly ventanas = new Map<string, { inicio: number; cantidad: number }>();
+  private readonly ventanas = new Map<
+    string,
+    { inicio: number; cantidad: number }
+  >();
 
   constructor(
     private readonly maximoPorMinuto = 120,

@@ -1,4 +1,13 @@
-import { Args, Context, Float, ID, Int, Mutation, Query, Resolver } from '@nestjs/graphql';
+import {
+  Args,
+  Context,
+  Float,
+  ID,
+  Int,
+  Mutation,
+  Query,
+  Resolver,
+} from '@nestjs/graphql';
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
 import { Roles } from '../comun/auth/roles.decorator.js';
 import { MaterialEntrada } from './entradas/material.entrada.js';
@@ -17,11 +26,15 @@ export class MaterialesResolver {
   materiales(
     @Context() contexto: ContextoGraphql,
     @Args('busqueda', { type: () => String, nullable: true }) busqueda?: string,
-    @Args('soloActivos', { type: () => Boolean, nullable: true }) soloActivos?: boolean,
+    @Args('soloActivos', { type: () => Boolean, nullable: true })
+    soloActivos?: boolean,
     @Args('pagina', { type: () => Int, defaultValue: 1 }) pagina?: number,
     @Args('tamano', { type: () => Int, defaultValue: 20 }) tamano?: number,
   ): Promise<MaterialesPagina> {
-    return this.materialesCliente.listar({ busqueda, soloActivos, pagina, tamano }, contexto);
+    return this.materialesCliente.listar(
+      { busqueda, soloActivos, pagina, tamano },
+      contexto,
+    );
   }
 
   /** Stock de la obra; si el usuario no la ve, Materiales responde 404 y llega OBRA_NO_ENCONTRADA. */
@@ -64,6 +77,11 @@ export class MaterialesResolver {
     @Args('materialId', { type: () => ID }) materialId: string,
     @Args('minimo', { type: () => Float }) minimo: number,
   ): Promise<StockMaterial> {
-    return this.materialesCliente.definirMinimo(obraId, materialId, minimo, contexto);
+    return this.materialesCliente.definirMinimo(
+      obraId,
+      materialId,
+      minimo,
+      contexto,
+    );
   }
 }

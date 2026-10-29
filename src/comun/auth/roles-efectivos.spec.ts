@@ -10,7 +10,9 @@ describe('rolesEfectivos', () => {
 
   it('desde el ERP y la app solo cuentan los roles internos', () => {
     expect(rolesEfectivos(demo1, 'erp')).toEqual(['residente']);
-    expect(rolesEfectivos(['maestro', 'cliente'], 'app-obra')).toEqual(['maestro']);
+    expect(rolesEfectivos(['maestro', 'cliente'], 'app-obra')).toEqual([
+      'maestro',
+    ]);
   });
 
   it('los clientes de servicio usan los roles del token', () => {

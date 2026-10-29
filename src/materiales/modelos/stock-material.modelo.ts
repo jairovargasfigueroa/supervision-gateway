@@ -1,4 +1,10 @@
-import { Field, Float, ID, ObjectType, registerEnumType } from '@nestjs/graphql';
+import {
+  Field,
+  Float,
+  ID,
+  ObjectType,
+  registerEnumType,
+} from '@nestjs/graphql';
 
 /** Estado del stock de un material en una obra; lo calcula Materiales al leer (reglas del negocio). */
 export enum EstadoStock {
