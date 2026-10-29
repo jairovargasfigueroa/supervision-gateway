@@ -4,7 +4,7 @@ Gateway GraphQL de la plataforma: la **única** entrada del ERP (BFF). Recibe la
 
 Parte de la «Plataforma de supervisión de obras». Si existe `../CLAUDE.md` (carpeta que agrupa todos los proyectos), léelo primero: tiene las reglas transversales, el plan y los contratos generales.
 
-**Estado:** proyecto generado y configurado, sin funcionalidades. Solo existe la consulta técnica `salud`. No implementes una funcionalidad sin su especificación aprobada en `docs/specs/`.
+**Estado:** fase 1. Valida el token de Keycloak (guard global), reenvía token y `X-Request-Id` con tiempo máximo de 3 s (`comun/`). Solo existe la consulta técnica `salud` (sin token). No implementes una funcionalidad sin su especificación aprobada en `docs/specs/`.
 
 ## Stack
 
@@ -20,7 +20,7 @@ Parte de la «Plataforma de supervisión de obras». Si existe `../CLAUDE.md` (c
 npm install
 npm run start:dev    # levantar en modo desarrollo
 npm test             # pruebas unitarias
-npm run test:e2e     # pruebas de punta a punta (consulta { salud })
+npm run test:e2e     # pruebas de punta a punta (salud, token, reenvío a un servicio simulado)
 npm run lint
 npm run build
 ```
