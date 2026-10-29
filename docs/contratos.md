@@ -147,6 +147,13 @@ type Mutation {
 - `materialComparado(periodo)`: `GET /obras/{id}/material-previsto?periodo=` (Obras) + `GET /obras/{id}/consumos?periodo=` (Materiales) + catálogo. Una fila por cada par partida–material que aparece en el previsto o en los consumos (lo que falta de un lado cuenta 0). `diferencia = usado − previsto` (positiva: se usó más de lo previsto); `excedido = usado > 1,20 × previsto` (calculado en milésimas, sin errores de redondeo; con previsto 0, cualquier uso queda excedido). Orden: el de las partidas de la obra y, dentro de cada una, por código de material. Si Obras o Materiales falla, el campo vuelve `null` con el error de ese servicio.
 - `planillas`: todavía no se expone; llega con la 007, cuando Obras tenga `GET /obras/{id}/planillas`.
 
+### Cómo se resuelve `tablero` (009)
+
+- `tablero` no llama a ningún servicio: cada parte la resuelve su propio campo, así que si un servicio no responde solo sus campos vuelven `null` con `SERVICIO_NO_DISPONIBLE` y el resto llega.
+- `obras`, `indicadores.obrasEnEjecucion` e `indicadores.obrasEnRiesgo`: `GET /obras?estado=EN_EJECUCION` (Obras), pedido una sola vez por petición. Las filas salen en el orden de Obras (por nombre); el ERP ordena la tabla. `diferencia` = `plazoPct − avancePct`, calculada en centésimas.
+- `FilaTablero.materialesBajos` e `indicadores.materialesBajos` (suma de las filas): `GET /stock/resumen?obraIds=a,b,c` (Materiales), **una sola llamada** en lote con el DataLoader de la petición; una obra que Materiales no devuelve cuenta 0. Sin obras en ejecución no se llama a Materiales. Si Obras falla, el indicador también vuelve `null` (no hay obras que sumar).
+- `indicadores.cobrosVencidos`: `vencidos` de `GET /cobros/resumen` (Finanzas); `null` sin error (y sin llamar a Finanzas) si el rol efectivo no es `admin` ni `gerente`.
+
 Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, reportes por voz) en sus especificaciones.
 
 ## Consume (REST)

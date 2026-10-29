@@ -146,4 +146,29 @@ describe('MaterialesCliente', () => {
       contexto,
     );
   });
+
+  it('materialesBajos junta las obras de la petición en una sola llamada a GET /stock/resumen', async () => {
+    const { servicio, materiales } = crear();
+    servicio.consultar.mockResolvedValue([
+      { obraId: 'o1', materialesBajos: 2 },
+      { obraId: 'o/2', materialesBajos: 1 },
+    ]);
+    const peticion = {
+      req: { requestId: 'req-2', token: 't' },
+    } as unknown as ContextoGraphql;
+    const cantidades = await Promise.all([
+      materiales.materialesBajos('o1', peticion),
+      materiales.materialesBajos('o/2', peticion),
+      materiales.materialesBajos('o3', peticion),
+      materiales.materialesBajos('o1', peticion),
+    ]);
+    // Una obra que Materiales no devuelve cuenta 0
+    expect(cantidades).toEqual([2, 1, 0, 2]);
+    expect(servicio.consultar).toHaveBeenCalledTimes(1);
+    expect(servicio.consultar).toHaveBeenCalledWith(
+      'materiales',
+      '/stock/resumen?obraIds=o1,o%2F2,o3',
+      peticion,
+    );
+  });
 });

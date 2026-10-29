@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
-import { unaVezPorPeticion } from '../comun/dataloaders/dataloaders.js';
+import {
+  cargador,
+  unaVezPorPeticion,
+} from '../comun/dataloaders/dataloaders.js';
 import { ClienteServicio } from '../comun/http/cliente-servicio.js';
 import type { Material, MaterialesPagina } from './modelos/material.modelo.js';
 import type { StockMaterial } from './modelos/stock-material.modelo.js';
@@ -29,6 +32,12 @@ export interface ConsumoRest {
   partidaId: string;
   materialId: string;
   cantidad: number;
+}
+
+/** Materiales en estado BAJO de una obra (`GET /stock/resumen?obraIds=`, 009). */
+export interface ResumenStockRest {
+  obraId: string;
+  materialesBajos: number;
 }
 
 /** Llamadas REST a Materiales (docs/contratos.md, «Consume»). Los errores llegan con su `codigo` (ClienteServicio). */
@@ -112,6 +121,36 @@ export class MaterialesCliente {
       `/obras/${encodeURIComponent(obraId)}/stock`,
       contexto,
     );
+  }
+
+  /** `GET /stock/resumen?obraIds=a,b,c` (009): solo devuelve las obras pedidas que el usuario puede ver. */
+  resumenStock(
+    obraIds: readonly string[],
+    contexto: ContextoGraphql,
+  ): Promise<ResumenStockRest[]> {
+    return this.cliente.consultar<ResumenStockRest[]>(
+      'materiales',
+      `/stock/resumen?obraIds=${obraIds.map(encodeURIComponent).join(',')}`,
+      contexto,
+    );
+  }
+
+  /**
+   * Materiales BAJO de una obra con el DataLoader de la petición (009): todas las obras pedidas en la misma petición
+   * se resuelven con una sola llamada a `GET /stock/resumen`. Una obra que Materiales no devuelve cuenta 0.
+   */
+  materialesBajos(obraId: string, contexto: ContextoGraphql): Promise<number> {
+    return cargador<string, number>(
+      contexto,
+      'materialesBajos',
+      async (obraIds) => {
+        const resumen = await this.resumenStock(obraIds, contexto);
+        const porObra = new Map(
+          resumen.map((fila) => [fila.obraId, fila.materialesBajos]),
+        );
+        return obraIds.map((id) => porObra.get(id) ?? 0);
+      },
+    ).load(obraId);
   }
 
   /** `POST /materiales` (sin reintento); `409 CODIGO_MATERIAL_REPETIDO` llega con su codigo. */
