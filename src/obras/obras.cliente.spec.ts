@@ -51,4 +51,28 @@ describe('ObrasCliente', () => {
       contexto,
     );
   });
+
+  it('fotos pide GET /obras/{id}/fotos con partida, página y tamaño', async () => {
+    const { servicio, obras } = crear();
+    await obras.fotos(
+      'o1',
+      { partidaId: 'p1', pagina: 2, tamano: 50 },
+      contexto,
+    );
+    expect(servicio.consultar).toHaveBeenCalledWith(
+      'obras',
+      '/obras/o1/fotos?partidaId=p1&pagina=2&tamano=50',
+      contexto,
+    );
+  });
+
+  it('fotos sin partida no manda partidaId', async () => {
+    const { servicio, obras } = crear();
+    await obras.fotos('o1', { pagina: 1, tamano: 50 }, contexto);
+    expect(servicio.consultar).toHaveBeenCalledWith(
+      'obras',
+      '/obras/o1/fotos?pagina=1&tamano=50',
+      contexto,
+    );
+  });
 });

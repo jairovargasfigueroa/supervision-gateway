@@ -620,4 +620,104 @@ describe('Consultar obra (e2e)', () => {
       expect(materiales.pedidos).toHaveLength(0);
     }, 15000);
   });
+
+  describe('fotos(partidaId, pagina, tamano) · 005', () => {
+    const SUBE_FOTOS = 'a0000000-0000-4000-8000-000000000207';
+    const foto = (id: string, registradoPor: string) => ({
+      id,
+      partidaId: 'p1',
+      registradoPor,
+      registradoEn: '2026-11-15T15:20:00Z',
+      publicadaCliente: false,
+      urlDescarga: `https://s3.ejemplo/fotos/${ID_OBRA}/${id}.jpg?firma=x`,
+    });
+    const CONSULTA_FOTOS = `query ($id: ID!, $partidaId: ID, $pagina: Int, $tamano: Int) {
+      obra(id: $id) {
+        nombre
+        fotos(partidaId: $partidaId, pagina: $pagina, tamano: $tamano) {
+          total pagina tamano
+          items { id partidaId registradoEn publicadaCliente urlDescarga registradoPor { id nombre } }
+        }
+      }
+    }`;
+
+    const responderFotos = (items: unknown[]) => {
+      obras.responder = porRuta({
+        [`/obras/${ID_OBRA}`]: { cuerpo: OBRA_REST },
+        [`/obras/${ID_OBRA}/fotos`]: {
+          cuerpo: { items, total: items.length, pagina: 1, tamano: 50 },
+        },
+      });
+    };
+
+    it('pide la página por partida a Obras y resuelve registradoPor en Keycloak una vez por usuario', async () => {
+      responderFotos([foto('f1', SUBE_FOTOS), foto('f2', SUBE_FOTOS)]);
+      const respuesta = await consultar(CONSULTA_FOTOS, {
+        id: ID_OBRA,
+        partidaId: 'p1',
+      });
+      expect(respuesta.body.errors).toBeUndefined();
+      expect(respuesta.body.data.obra.fotos).toEqual({
+        total: 2,
+        pagina: 1,
+        tamano: 50,
+        items: ['f1', 'f2'].map((id) => {
+          const { registradoPor: _id, ...datos } = foto(id, SUBE_FOTOS);
+          return {
+            ...datos,
+            registradoPor: { id: SUBE_FOTOS, nombre: 'Usuario 207' },
+          };
+        }),
+      });
+      expect(obras.rutas).toContain(
+        `/obras/${ID_OBRA}/fotos?partidaId=p1&pagina=1&tamano=50`,
+      );
+      expect(
+        keycloak.rutas.filter((ruta) => ruta.endsWith(`/users/${SUBE_FOTOS}`)),
+      ).toHaveLength(1);
+    });
+
+    it('pasa la página y el tamaño pedidos; sin partidaId pide todas las fotos de la obra', async () => {
+      responderFotos([]);
+      await consultar(CONSULTA_FOTOS, { id: ID_OBRA, pagina: 3, tamano: 10 });
+      expect(obras.rutas).toContain(
+        `/obras/${ID_OBRA}/fotos?pagina=3&tamano=10`,
+      );
+    });
+
+    it('si Keycloak falla, solo registradoPor vuelve null', async () => {
+      const otro = 'a0000000-0000-4000-8000-000000000208';
+      responderFotos([foto('f3', otro)]);
+      keycloak.responder = () => ({ estado: 500 });
+      const respuesta = await consultar(CONSULTA_FOTOS, { id: ID_OBRA });
+      expect(respuesta.body.data.obra.fotos.items[0]).toMatchObject({
+        id: 'f3',
+        urlDescarga: expect.stringContaining('f3.jpg'),
+        registradoPor: null,
+      });
+      expect(respuesta.body.errors[0]).toMatchObject({
+        path: ['obra', 'fotos', 'items', 0, 'registradoPor'],
+        extensions: { servicio: 'keycloak' },
+      });
+    });
+
+    it('si Obras no da las fotos, obra vuelve null con el error (FotosPagina! no admite null)', async () => {
+      obras.responder = porRuta({
+        [`/obras/${ID_OBRA}`]: { cuerpo: OBRA_REST },
+        [`/obras/${ID_OBRA}/fotos`]: {
+          estado: 503,
+          cuerpo: {
+            title: 'Almacenamiento no configurado',
+            codigo: 'SERVICIO_NO_DISPONIBLE',
+          },
+        },
+      });
+      const respuesta = await consultar(CONSULTA_FOTOS, { id: ID_OBRA });
+      expect(respuesta.body.data).toEqual({ obra: null });
+      expect(respuesta.body.errors[0]).toMatchObject({
+        path: ['obra', 'fotos'],
+        extensions: { codigo: 'SERVICIO_NO_DISPONIBLE', servicio: 'obras' },
+      });
+    });
+  });
 });

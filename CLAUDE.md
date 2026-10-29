@@ -4,7 +4,7 @@ Gateway GraphQL de la plataforma: la **única** entrada del ERP (BFF). Recibe la
 
 Parte de la «Plataforma de supervisión de obras». Si existe `../CLAUDE.md` (carpeta que agrupa todos los proyectos), léelo primero: tiene las reglas transversales, el plan y los contratos generales.
 
-**Estado:** fase 1. Valida el token de Keycloak (guard global), reenvía token y `X-Request-Id` con tiempo máximo de 3 s (`comun/`). Consultas: `salud` (sin token), `obras` (esqueleto que camina de la 1.10; Obras devuelve la lista vacía hasta la 006), `usuarios(rol)` y `obra(id)` básica (002: datos de Obras y asignaciones de Keycloak; `finanzas`, `fotos`, `planillas`, `cobros`, `materialComparado` e `Insumo.material` llegan con sus funcionalidades). Mutación: `registrarObra` (002). Materiales (003): consultas `materiales` (paginada) y `stockObra`, mutaciones `crearMaterial`, `actualizarMaterial` y `definirStockMinimo`. No implementes una funcionalidad sin su especificación aprobada en `docs/specs/`.
+**Estado:** fase 1. Valida el token de Keycloak (guard global), reenvía token y `X-Request-Id` con tiempo máximo de 3 s (`comun/`). Consultas: `salud` (sin token), `usuarios(rol)` (002), `obras(estado, busqueda)` y `obra(id)` completos (006: asignaciones con caché de 5 min, `Insumo.material`, `finanzas` y `cobros` solo para `admin` y `gerente`, `materialComparado(periodo)` y `fotos` de la 005, con DataLoader por petición y respuesta parcial; `planillas` llega con la 007). Mutación: `registrarObra` (002). Materiales (003): consultas `materiales` (paginada) y `stockObra`, mutaciones `crearMaterial`, `actualizarMaterial` y `definirStockMinimo`. No implementes una funcionalidad sin su especificación aprobada en `docs/specs/`.
 
 ## Stack
 

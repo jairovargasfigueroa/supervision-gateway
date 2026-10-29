@@ -2,6 +2,7 @@ import {
   Args,
   Context,
   ID,
+  Int,
   Mutation,
   Parent,
   Query,
@@ -14,6 +15,7 @@ import { cadaUno, cargador } from '../comun/dataloaders/dataloaders.js';
 import { KeycloakAdminCliente } from '../comun/keycloak/keycloak-admin.cliente.js';
 import { Usuario } from '../comun/keycloak/usuario.modelo.js';
 import { RegistrarObraEntrada } from './entradas/registrar-obra.entrada.js';
+import { FotosPagina } from './modelos/foto.modelo.js';
 import { EstadoObra, ObraResumen } from './modelos/obra-resumen.modelo.js';
 import { Obra } from './modelos/obra.modelo.js';
 import { ObrasCliente, type ObraRest } from './obras.cliente.js';
@@ -63,6 +65,23 @@ export class ObrasResolver {
     entrada: RegistrarObraEntrada,
   ): Promise<ObraRest> {
     return this.obrasCliente.registrar(entrada, contexto);
+  }
+
+  /** 005: galería de la obra (por partida si se indica). `registradoPor` lo resuelve FotosResolver. */
+  @ResolveField(() => FotosPagina)
+  fotos(
+    @Parent() obra: ObraRest,
+    @Context() contexto: ContextoGraphql,
+    @Args('partidaId', { type: () => ID, nullable: true })
+    partidaId: string | null | undefined,
+    @Args('pagina', { type: () => Int, defaultValue: 1 }) pagina: number,
+    @Args('tamano', { type: () => Int, defaultValue: 50 }) tamano: number,
+  ): Promise<FotosPagina> {
+    return this.obrasCliente.fotos(
+      obra.id,
+      { partidaId, pagina, tamano },
+      contexto,
+    );
   }
 
   // Asignaciones: nombres desde Keycloak (caché de 5 min y DataLoader); si Keycloak falla, solo ese campo vuelve null.
