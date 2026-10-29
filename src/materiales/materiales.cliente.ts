@@ -35,6 +35,9 @@ export interface ConsumoRest {
 }
 
 /** Materiales en estado BAJO de una obra (`GET /stock/resumen?obraIds=`, 009). */
+/** Máximo de obras por llamada a `GET /stock/resumen` (contrato de Materiales). */
+export const OBRAS_POR_RESUMEN = 100;
+
 export interface ResumenStockRest {
   obraId: string;
   materialesBajos: number;
@@ -137,7 +140,8 @@ export class MaterialesCliente {
 
   /**
    * Materiales BAJO de una obra con el DataLoader de la petición (009): todas las obras pedidas en la misma petición
-   * se resuelven con una sola llamada a `GET /stock/resumen`. Una obra que Materiales no devuelve cuenta 0.
+   * se resuelven con una sola llamada a `GET /stock/resumen` (Materiales acepta hasta 100 obras por llamada: con más,
+   * una llamada por cada 100). Una obra que Materiales no devuelve cuenta 0.
    */
   materialesBajos(obraId: string, contexto: ContextoGraphql): Promise<number> {
     return cargador<string, number>(
@@ -150,6 +154,7 @@ export class MaterialesCliente {
         );
         return obraIds.map((id) => porObra.get(id) ?? 0);
       },
+      { maxBatchSize: OBRAS_POR_RESUMEN },
     ).load(obraId);
   }
 

@@ -171,4 +171,29 @@ describe('MaterialesCliente', () => {
       peticion,
     );
   });
+
+  it('materialesBajos parte en lotes de 100 obras cuando la petición trae más', async () => {
+    const { servicio, materiales } = crear();
+    servicio.consultar.mockResolvedValue([]);
+    const peticion = {
+      req: { requestId: 'req-3', token: 't' },
+    } as unknown as ContextoGraphql;
+    const ids = Array.from({ length: 150 }, (_, i) => `o${i}`);
+    await Promise.all(
+      ids.map((id) => materiales.materialesBajos(id, peticion)),
+    );
+    expect(servicio.consultar).toHaveBeenCalledTimes(2);
+    expect(servicio.consultar).toHaveBeenNthCalledWith(
+      1,
+      'materiales',
+      `/stock/resumen?obraIds=${ids.slice(0, 100).join(',')}`,
+      peticion,
+    );
+    expect(servicio.consultar).toHaveBeenNthCalledWith(
+      2,
+      'materiales',
+      `/stock/resumen?obraIds=${ids.slice(100).join(',')}`,
+      peticion,
+    );
+  });
 });

@@ -12,12 +12,14 @@ const cargadoresPorPeticion = new WeakMap<
 
 /**
  * El DataLoader `nombre` de esta petición; lo crea la primera vez con `cargar`. Todas las llamadas con la misma clave
- * dentro de la petición se resuelven con una sola llamada al servicio.
+ * dentro de la petición se resuelven con una sola llamada al servicio (o una por cada `opciones.maxBatchSize` claves,
+ * si el servicio limita cuántas recibe).
  */
 export function cargador<K, V>(
   contexto: ContextoGraphql,
   nombre: string,
   cargar: DataLoader.BatchLoadFn<K, V>,
+  opciones?: DataLoader.Options<K, V>,
 ): DataLoader<K, V> {
   let cargadores = cargadoresPorPeticion.get(contexto.req);
   if (!cargadores) {
@@ -26,7 +28,10 @@ export function cargador<K, V>(
   }
   let encontrado = cargadores.get(nombre);
   if (!encontrado) {
-    encontrado = new DataLoader<K, V>(cargar) as DataLoader<unknown, unknown>;
+    encontrado = new DataLoader<K, V>(cargar, opciones) as DataLoader<
+      unknown,
+      unknown
+    >;
     cargadores.set(nombre, encontrado);
   }
   return encontrado as DataLoader<K, V>;
