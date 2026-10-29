@@ -152,6 +152,13 @@ type Mutation {
 - `planilla(id)`: `GET /planillas/{id}` (Obras valida que el usuario vea la obra; si no, el campo vuelve `null` con el `codigo` de Obras). La misma planilla pedida con dos alias se pide una sola vez. `Planilla.cobro` llega con la 008.
 - `crearPlanilla` → `POST /obras/{obraId}/planillas` `{ periodo }`; `guardarPlanilla` → `PUT /planillas/{id}` con la entrada tal cual (`version`, `lineas`, `fotoIds`); `presentarPlanilla` → `POST /planillas/{id}/presentar` `{ version }`. Solo `residente` (el gateway responde `SIN_PERMISO` a otros roles sin llamar a Obras; que sea el residente asignado lo valida Obras). Sin reintento. Los errores de Obras llegan en `extensions.codigo` con `data: null`: `PLANILLA_ABIERTA_EXISTE`, `PERIODO_NO_POSTERIOR`, `PERIODO_FUTURO`, `OBRA_NO_EN_EJECUCION`, `VERSION_DESACTUALIZADA`, `PLANILLA_NO_EDITABLE`, `SUPERA_CANTIDAD_CONTRATADA` (con `extensions.errores[]`, `campo` = `partidaId`), `FOTO_FUERA_DEL_PERIODO` y `SUBTOTAL_CERO`.
 
+### Cómo se resuelve `tablero` (009)
+
+- `tablero` no llama a ningún servicio: cada parte la resuelve su propio campo, así que si un servicio no responde solo sus campos vuelven `null` con `SERVICIO_NO_DISPONIBLE` y el resto llega.
+- `obras`, `indicadores.obrasEnEjecucion` e `indicadores.obrasEnRiesgo`: `GET /obras?estado=EN_EJECUCION` (Obras), pedido una sola vez por petición. Las filas salen en el orden de Obras (por nombre); el ERP ordena la tabla. `diferencia` = `plazoPct − avancePct`, calculada en centésimas.
+- `FilaTablero.materialesBajos` e `indicadores.materialesBajos` (suma de las filas): `GET /stock/resumen?obraIds=a,b,c` (Materiales), **una sola llamada** en lote con el DataLoader de la petición (Materiales acepta hasta 100 obras por llamada: con más, una llamada por cada 100); una obra que Materiales no devuelve cuenta 0. Sin obras en ejecución no se llama a Materiales. Si Obras falla, el indicador también vuelve `null` (no hay obras que sumar).
+- `indicadores.cobrosVencidos`: `vencidos` de `GET /cobros/resumen` (Finanzas); `null` sin error (y sin llamar a Finanzas) si el rol efectivo no es `admin` ni `gerente`.
+
 Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, reportes por voz) en sus especificaciones.
 
 ## Consume (REST)

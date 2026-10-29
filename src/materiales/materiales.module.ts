@@ -13,5 +13,7 @@ import { MaterialesResolver } from './materiales.resolver.js';
     InsumosResolver,
     MaterialComparadoResolver,
   ],
+  // El tablero (009) lo usa para los materiales bajos de cada obra
+  exports: [MaterialesCliente],
 })
 export class MaterialesModule {}

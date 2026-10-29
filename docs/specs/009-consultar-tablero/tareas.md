@@ -4,4 +4,4 @@ Requisitos y diseño: `docs/specs/009-consultar-tablero/` de la carpeta que agru
 
 Marca cada tarea al terminarla (con sus pruebas y su commit).
 
-- [ ] Consulta `tablero` con indicadores y filas, lote a Materiales con DataLoader y respuesta parcial; pruebas
+- [x] Consulta `tablero` con indicadores y filas, lote a Materiales con DataLoader y respuesta parcial; pruebas

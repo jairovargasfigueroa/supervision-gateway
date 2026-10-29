@@ -146,4 +146,54 @@ describe('MaterialesCliente', () => {
       contexto,
     );
   });
+
+  it('materialesBajos junta las obras de la petición en una sola llamada a GET /stock/resumen', async () => {
+    const { servicio, materiales } = crear();
+    servicio.consultar.mockResolvedValue([
+      { obraId: 'o1', materialesBajos: 2 },
+      { obraId: 'o/2', materialesBajos: 1 },
+    ]);
+    const peticion = {
+      req: { requestId: 'req-2', token: 't' },
+    } as unknown as ContextoGraphql;
+    const cantidades = await Promise.all([
+      materiales.materialesBajos('o1', peticion),
+      materiales.materialesBajos('o/2', peticion),
+      materiales.materialesBajos('o3', peticion),
+      materiales.materialesBajos('o1', peticion),
+    ]);
+    // Una obra que Materiales no devuelve cuenta 0
+    expect(cantidades).toEqual([2, 1, 0, 2]);
+    expect(servicio.consultar).toHaveBeenCalledTimes(1);
+    expect(servicio.consultar).toHaveBeenCalledWith(
+      'materiales',
+      '/stock/resumen?obraIds=o1,o%2F2,o3',
+      peticion,
+    );
+  });
+
+  it('materialesBajos parte en lotes de 100 obras cuando la petición trae más', async () => {
+    const { servicio, materiales } = crear();
+    servicio.consultar.mockResolvedValue([]);
+    const peticion = {
+      req: { requestId: 'req-3', token: 't' },
+    } as unknown as ContextoGraphql;
+    const ids = Array.from({ length: 150 }, (_, i) => `o${i}`);
+    await Promise.all(
+      ids.map((id) => materiales.materialesBajos(id, peticion)),
+    );
+    expect(servicio.consultar).toHaveBeenCalledTimes(2);
+    expect(servicio.consultar).toHaveBeenNthCalledWith(
+      1,
+      'materiales',
+      `/stock/resumen?obraIds=${ids.slice(0, 100).join(',')}`,
+      peticion,
+    );
+    expect(servicio.consultar).toHaveBeenNthCalledWith(
+      2,
+      'materiales',
+      `/stock/resumen?obraIds=${ids.slice(100).join(',')}`,
+      peticion,
+    );
+  });
 });

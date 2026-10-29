@@ -26,6 +26,18 @@ export interface CobrosPaginaRest {
   tamano: number;
 }
 
+/** Cantidad y monto de un grupo de cobros (`GET /cobros/resumen`, 009). */
+export interface ResumenMontoRest {
+  cantidad: number;
+  monto: number;
+}
+
+/** `GET /cobros/resumen` (009). */
+export interface ResumenCobrosRest {
+  vencidos: ResumenMontoRest;
+  porVencer30Dias: ResumenMontoRest;
+}
+
 /**
  * Llamadas REST a Finanzas (docs/contratos.md, «Consume»), con el DataLoader de la petición: cada obra se pide una
  * sola vez aunque varios campos la necesiten. Roles en Finanzas: admin y gerente.
@@ -67,5 +79,14 @@ export class FinanzasCliente {
         return pagina.items;
       }),
     ).load(obraId);
+  }
+
+  /** `GET /cobros/resumen` (009; roles admin y gerente): cobros vencidos y por vencer en 30 días. */
+  resumenCobros(contexto: ContextoGraphql): Promise<ResumenCobrosRest> {
+    return this.cliente.consultar<ResumenCobrosRest>(
+      'finanzas',
+      '/cobros/resumen',
+      contexto,
+    );
   }
 }
