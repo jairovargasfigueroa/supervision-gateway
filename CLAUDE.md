@@ -47,6 +47,7 @@ src/
 - Cada campo que viene de un servicio distinto se resuelve por separado; si un servicio no responde, ese campo devuelve error y el resto sí llega (respuesta parcial).
 - Tiempo máximo por llamada a un servicio: 3 segundos. Las consultas se reintentan una vez; las mutaciones no (ver `docs/convenciones.md` de la carpeta general).
 - Reenvía el token del usuario; los permisos finos los valida cada servicio.
+- Seguridad (convenciones): profundidad 8 y complejidad 1000 por consulta, 120 peticiones por minuto por usuario (`429 DEMASIADAS_PETICIONES` con `Retry-After`), introspección y Apollo Sandbox solo fuera de producción, JSON de hasta 1 MB, `nosniff` y `no-referrer`. Si Keycloak no responde al pedir el JWKS: `SERVICIO_NO_DISPONIBLE` (servicio `keycloak`).
 - El esquema GraphQL sigue `docs/contratos/graphql-erp.md` de la carpeta general.
 
 ## Documentación

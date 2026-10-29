@@ -1,4 +1,4 @@
-import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose';
+import { createRemoteJWKSet, errors, jwtVerify, type JWTVerifyGetKey } from 'jose';
 
 /** Datos del usuario que salen del token de Keycloak. */
 export interface UsuarioToken {
@@ -30,10 +30,13 @@ export class VerificadorToken {
   }
 
   async verificar(token: string): Promise<UsuarioToken> {
-    const { payload } = await jwtVerify(token, this.claves, {
-      issuer: this.emisor,
-      audience: this.audiencia,
-    });
+    let payload;
+    try {
+      ({ payload } = await jwtVerify(token, this.claves, { issuer: this.emisor, audience: this.audiencia }));
+    } catch (error) {
+      if (esFallaAlObtenerClaves(error)) throw new ClavesNoDisponiblesError();
+      throw error;
+    }
     const accesoRealm = payload['realm_access'] as { roles?: string[] } | undefined;
     return {
       id: payload.sub ?? '',
@@ -42,4 +45,19 @@ export class VerificadorToken {
       azp: typeof payload['azp'] === 'string' ? payload['azp'] : '',
     };
   }
+}
+
+/** Keycloak no respondió al pedir el JWKS: no es culpa del token (se responde SERVICIO_NO_DISPONIBLE, no NO_AUTENTICADO). */
+export class ClavesNoDisponiblesError extends Error {
+  constructor() {
+    super('Keycloak no responde');
+    this.name = 'ClavesNoDisponiblesError';
+  }
+}
+
+/** Error de red, tiempo agotado o respuesta distinta de 200 al pedir el JWKS. */
+export function esFallaAlObtenerClaves(error: unknown): boolean {
+  if (error instanceof errors.JWKSTimeout) return true;
+  if (error instanceof errors.JOSEError) return error.message.startsWith('Expected 200 OK from the JSON Web Key Set');
+  return error instanceof Error;
 }
