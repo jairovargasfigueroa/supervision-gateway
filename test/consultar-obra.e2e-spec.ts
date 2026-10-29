@@ -524,4 +524,100 @@ describe('Consultar obra (e2e)', () => {
       });
     });
   });
+
+  describe('respuesta parcial con servicios lentos (> 3 s)', () => {
+    const CONSULTA_COMPLETA = `query ($id: ID!) {
+      obra(id: $id) {
+        nombre estado avancePct
+        residente { nombre }
+        partidas { codigo }
+        finanzas { saldoDisponible }
+        cobros { numero }
+        materialComparado(periodo: "2027-02") { hayPlanilla }
+      }
+    }`;
+
+    const errores = (cuerpo: {
+      errors?: { path: string[]; extensions: Record<string, unknown> }[];
+    }) =>
+      (cuerpo.errors ?? [])
+        .map((e) => [
+          e.path.join('.'),
+          e.extensions.codigo,
+          e.extensions.servicio,
+        ])
+        .sort((a, b) => a.join().localeCompare(b.join()));
+
+    it('Finanzas y Materiales tardan más de 3 s: solo sus campos vuelven null con SERVICIO_NO_DISPONIBLE', async () => {
+      obras.responder = porRuta({
+        [`/obras/${ID_OBRA}`]: { cuerpo: OBRA_REST },
+        [`/obras/${ID_OBRA}/material-previsto`]: {
+          cuerpo: { periodo: '2027-02', hayPlanilla: false, items: [] },
+        },
+      });
+      finanzas.responder = () => ({ cuerpo: [CONTRATO_REST], esperaMs: 3500 });
+      materiales.responder = () => ({ cuerpo: [], esperaMs: 3500 });
+
+      const inicio = Date.now();
+      const respuesta = await consultar(CONSULTA_COMPLETA, { id: ID_OBRA });
+      const duracion = Date.now() - inicio;
+
+      expect(respuesta.status).toBe(200);
+      expect(respuesta.body.data.obra).toEqual({
+        nombre: OBRA_REST.nombre,
+        estado: 'EN_EJECUCION',
+        avancePct: 32.5,
+        residente: { nombre: 'Usuario 203' },
+        partidas: [{ codigo: 'P-01' }, { codigo: 'P-02' }],
+        finanzas: null,
+        cobros: null,
+        materialComparado: null,
+      });
+      expect(errores(respuesta.body)).toEqual([
+        ['obra.cobros', 'SERVICIO_NO_DISPONIBLE', 'finanzas'],
+        ['obra.finanzas', 'SERVICIO_NO_DISPONIBLE', 'finanzas'],
+        ['obra.materialComparado', 'SERVICIO_NO_DISPONIBLE', 'materiales'],
+      ]);
+      // Cada consulta se corta a los 3 s y se reintenta una vez: 2 pedidos a cada endpoint
+      expect(finanzas.rutas.sort()).toEqual([
+        `/cobros?obraId=${ID_OBRA}&tamano=100`,
+        `/cobros?obraId=${ID_OBRA}&tamano=100`,
+        `/contratos?obraId=${ID_OBRA}`,
+        `/contratos?obraId=${ID_OBRA}`,
+      ]);
+      // Los campos se piden en paralelo: unos 6 s (dos intentos de 3 s), no la suma de todos
+      expect(duracion).toBeGreaterThanOrEqual(5900);
+      expect(duracion).toBeLessThan(9000);
+    }, 20000);
+
+    it('Finanzas responde a tiempo en el reintento: los datos llegan sin error', async () => {
+      let intentos = 0;
+      // El primer intento tarda más de 3 s; el reintento responde enseguida
+      finanzas.responder = () => ({
+        cuerpo: [CONTRATO_REST],
+        esperaMs: ++intentos === 1 ? 3500 : 0,
+      });
+      const respuesta = await consultar(
+        'query ($id: ID!) { obra(id: $id) { finanzas { saldoDisponible } } }',
+        { id: ID_OBRA },
+        ['gerente'],
+      );
+      expect(respuesta.body.errors).toBeUndefined();
+      expect(respuesta.body.data.obra.finanzas).toEqual({
+        saldoDisponible: 1180000,
+      });
+      expect(intentos).toBe(2);
+    }, 15000);
+
+    it('si Obras no responde, obra vuelve null con SERVICIO_NO_DISPONIBLE (obras) sin llamar a los demás', async () => {
+      obras.responder = () => ({ cuerpo: OBRA_REST, esperaMs: 3500 });
+      const respuesta = await consultar(CONSULTA_COMPLETA, { id: ID_OBRA });
+      expect(respuesta.body.data).toEqual({ obra: null });
+      expect(errores(respuesta.body)).toEqual([
+        ['obra', 'SERVICIO_NO_DISPONIBLE', 'obras'],
+      ]);
+      expect(finanzas.pedidos).toHaveLength(0);
+      expect(materiales.pedidos).toHaveLength(0);
+    }, 15000);
+  });
 });
