@@ -13,7 +13,7 @@ src/
   main.ts
   app.module.ts
   salud/                 salud.resolver.ts
-  comun/
+  comun/                 comun.module.ts (@Global: ClienteServicio)
     auth/                jwt.guard.ts (guard global), verificador-token.ts (jose + JWKS: firma, emisor, audiencia), publico.decorator.ts (@Publico: solo salud), roles.guard.ts, roles.decorator.ts, contexto.ts (usuario + token en el contexto GraphQL)
     http/                cliente-servicio.ts (fetch con token, X-Request-Id, timeout 3 s, reintento en consultas), errores.ts (Problem Details → GraphQLError con extensions.codigo), request-id.middleware.ts
     keycloak/            keycloak-admin.cliente.ts (client credentials + caché), usuarios.resolver.ts
@@ -27,6 +27,7 @@ src/
 test/
   obras.e2e-spec.ts      GraphQL contra servicios simulados (servidores HTTP de prueba)
   app.e2e-spec.ts        salud, token y reenvío de token y X-Request-Id
+  obras.e2e-spec.ts      consulta obras: lista, filtros y Obras caído
   soporte/               tokens-prueba.ts (claves RSA locales en lugar del JWKS de Keycloak)
 ```
 

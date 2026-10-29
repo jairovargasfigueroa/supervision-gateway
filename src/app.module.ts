@@ -6,8 +6,9 @@ import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import type { Request, Response } from 'express';
 import { JwtGuard } from './comun/auth/jwt.guard.js';
 import { VERIFICADOR_TOKEN, VerificadorToken } from './comun/auth/verificador-token.js';
-import { ClienteServicio } from './comun/http/cliente-servicio.js';
+import { ComunModule } from './comun/comun.module.js';
 import { RequestIdMiddleware } from './comun/http/request-id.middleware.js';
+import { ObrasModule } from './obras/obras.module.js';
 import { SaludResolver } from './salud/salud.resolver.js';
 
 @Module({
@@ -21,6 +22,8 @@ import { SaludResolver } from './salud/salud.resolver.js';
       // La petición (con su X-Request-Id, usuario y token) llega a guards y resolvers
       context: ({ req, res }: { req: Request; res: Response }) => ({ req, res }),
     }),
+    ComunModule,
+    ObrasModule,
   ],
   providers: [
     SaludResolver,
@@ -35,21 +38,7 @@ import { SaludResolver } from './salud/salud.resolver.js';
         ),
     },
     { provide: APP_GUARD, useClass: JwtGuard },
-    {
-      provide: ClienteServicio,
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) =>
-        new ClienteServicio({
-          urls: {
-            obras: config.get('OBRAS_URL', 'http://localhost:8081'),
-            materiales: config.get('MATERIALES_URL', 'http://localhost:8082'),
-            finanzas: config.get('FINANZAS_URL', 'http://localhost:8083'),
-          },
-          tiempoMaximoMs: 3000,
-        }),
-    },
   ],
-  exports: [ClienteServicio],
 })
 export class AppModule implements NestModule {
   configure(consumidor: MiddlewareConsumer): void {
