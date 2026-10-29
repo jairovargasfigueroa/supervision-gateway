@@ -32,6 +32,9 @@ src/
     modelos/             material.modelo.ts (Material, Atributo, MaterialesPagina, enum TipoMaterial), stock-material.modelo.ts (StockMaterial, enum EstadoStock)
     entradas/            material.entrada.ts (MaterialEntrada, AtributoEntrada)
     materiales.module.ts
+  planillas/             007: planillas.cliente.ts (GET /obras/{id}/planillas, GET /planillas/{id}), planillas.resolver.ts (planilla(id) y Obra.planillas)
+    modelos/             planilla.modelo.ts (Planilla, LineaPlanilla, PlanillaResumen)
+    planillas.module.ts
   finanzas/              006: finanzas.cliente.ts (GET /contratos?obraId=, GET /cobros?obraId=&tamano=100, con DataLoader), finanzas.resolver.ts (Obra.finanzas y Obra.cobros: null sin error si el rol no es admin ni gerente)
     modelos/             finanzas-obra.modelo.ts (FinanzasObra), cobro.modelo.ts (Cobro, enum EstadoCobro)
     finanzas.module.ts
@@ -44,6 +47,7 @@ test/
   usuarios.e2e-spec.ts   usuarios(rol) contra un Keycloak simulado
   registrar-obra.e2e-spec.ts  registrarObra y obra(id): reenvío a POST /obras, errores 422 → extensions.codigo, SIN_PERMISO, 404, Keycloak caído
   materiales.e2e-spec.ts materiales, stockObra y mutaciones de la 003 contra un Materiales simulado: filtros y paginación, 409 CODIGO_MATERIAL_REPETIDO → extensions.codigo, 404/422, sin reintento en mutaciones, Materiales caído o lento, SIN_PERMISO
+  planillas.e2e-spec.ts  007: Obra.planillas, planilla(id) y mutaciones contra un Obras simulado
   consultar-obra.e2e-spec.ts  006: obras y obra(id) completos contra Obras, Materiales, Finanzas y Keycloak simulados (DataLoader, respuesta parcial, servicio lento)
   soporte/               tokens-prueba.ts (claves RSA locales en lugar del JWKS de Keycloak), servicio-simulado.ts (servidor REST de prueba con demora configurable)
 ```

@@ -18,6 +18,7 @@ import { RequestIdMiddleware } from './comun/http/request-id.middleware.js';
 import { FinanzasModule } from './finanzas/finanzas.module.js';
 import { MaterialesModule } from './materiales/materiales.module.js';
 import { ObrasModule } from './obras/obras.module.js';
+import { PlanillasModule } from './planillas/planillas.module.js';
 import { SaludResolver } from './salud/salud.resolver.js';
 
 const enProduccion = process.env.NODE_ENV === 'production';
@@ -47,6 +48,7 @@ const enProduccion = process.env.NODE_ENV === 'production';
     ObrasModule,
     MaterialesModule,
     FinanzasModule,
+    PlanillasModule,
   ],
   providers: [
     SaludResolver,

@@ -145,7 +145,11 @@ type Mutation {
 - `finanzas`: `GET /contratos?obraId=`; `null` sin error si el rol efectivo no es `admin` ni `gerente` (no se llama a Finanzas) o si la obra todavía no tiene contrato en Finanzas.
 - `cobros`: `GET /cobros?obraId=&tamano=100` (solo la primera página); `null` sin error si el rol efectivo no es `admin` ni `gerente`.
 - `materialComparado(periodo)`: `GET /obras/{id}/material-previsto?periodo=` (Obras) + `GET /obras/{id}/consumos?periodo=` (Materiales) + catálogo. Una fila por cada par partida–material que aparece en el previsto o en los consumos (lo que falta de un lado cuenta 0). `diferencia = usado − previsto` (positiva: se usó más de lo previsto); `excedido = usado > 1,20 × previsto` (calculado en milésimas, sin errores de redondeo; con previsto 0, cualquier uso queda excedido). Orden: el de las partidas de la obra y, dentro de cada una, por código de material. Si Obras o Materiales falla, el campo vuelve `null` con el error de ese servicio.
-- `planillas`: todavía no se expone; llega con la 007, cuando Obras tenga `GET /obras/{id}/planillas`.
+- `planillas` (007): `GET /obras/{id}/planillas` (Obras), con DataLoader de la petición; `cobroNumero` tal como lo guarda Obras (`null` hasta la 008). Si Obras falla, `obra` vuelve `null` con el error (la lista no admite `null`).
+
+### Planillas (007)
+
+- `planilla(id)`: `GET /planillas/{id}` (Obras valida que el usuario vea la obra; si no, el campo vuelve `null` con el `codigo` de Obras). La misma planilla pedida con dos alias se pide una sola vez. `Planilla.cobro` llega con la 008.
 
 Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, reportes por voz) en sus especificaciones.
 
