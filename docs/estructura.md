@@ -37,6 +37,7 @@ test/
   roles.e2e-spec.ts      @Roles: NO_AUTENTICADO, SIN_PERMISO, regla del azp (demo1)
   usuarios.e2e-spec.ts   usuarios(rol) contra un Keycloak simulado
   registrar-obra.e2e-spec.ts  registrarObra y obra(id): reenvío a POST /obras, errores 422 → extensions.codigo, SIN_PERMISO, 404, Keycloak caído
+  materiales.e2e-spec.ts materiales, stockObra y mutaciones de la 003 contra un Materiales simulado: filtros y paginación, 409 CODIGO_MATERIAL_REPETIDO → extensions.codigo, 404/422, sin reintento en mutaciones, Materiales caído o lento, SIN_PERMISO
   soporte/               tokens-prueba.ts (claves RSA locales en lugar del JWKS de Keycloak)
 ```
 

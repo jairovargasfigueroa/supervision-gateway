@@ -6,4 +6,4 @@ Marca cada tarea al terminarla (con sus pruebas y su commit).
 
 - [x] Cliente REST de Materiales; tipos `Material`, `StockMaterial`; consultas `materiales`, `stockObra`
 - [x] Mutaciones `crearMaterial`, `actualizarMaterial`, `definirStockMinimo`
-- [ ] Pruebas
+- [x] Pruebas
