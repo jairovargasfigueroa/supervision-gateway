@@ -4,7 +4,7 @@ Gateway GraphQL de la plataforma: la **única** entrada del ERP (BFF). Recibe la
 
 Parte de la «Plataforma de supervisión de obras». Si existe `../CLAUDE.md` (carpeta que agrupa todos los proyectos), léelo primero: tiene las reglas transversales, el plan y los contratos generales.
 
-**Estado:** proyecto generado y configurado, sin funcionalidades. Solo existe la consulta técnica `salud`. No implementes una funcionalidad sin su especificación aprobada en `docs/specs/`.
+**Estado:** fase 1. Valida el token de Keycloak (guard global), reenvía token y `X-Request-Id` con tiempo máximo de 3 s (`comun/`). Consultas: `salud` (sin token) y `obras` (esqueleto que camina de la 1.10; Obras devuelve la lista vacía hasta la 006). No implementes una funcionalidad sin su especificación aprobada en `docs/specs/`.
 
 ## Stack
 
@@ -20,7 +20,7 @@ Parte de la «Plataforma de supervisión de obras». Si existe `../CLAUDE.md` (c
 npm install
 npm run start:dev    # levantar en modo desarrollo
 npm test             # pruebas unitarias
-npm run test:e2e     # pruebas de punta a punta (consulta { salud })
+npm run test:e2e     # pruebas de punta a punta (salud, token, reenvío a un servicio simulado)
 npm run lint
 npm run build
 ```
@@ -47,6 +47,7 @@ src/
 - Cada campo que viene de un servicio distinto se resuelve por separado; si un servicio no responde, ese campo devuelve error y el resto sí llega (respuesta parcial).
 - Tiempo máximo por llamada a un servicio: 3 segundos. Las consultas se reintentan una vez; las mutaciones no (ver `docs/convenciones.md` de la carpeta general).
 - Reenvía el token del usuario; los permisos finos los valida cada servicio.
+- Seguridad (convenciones): profundidad 8 y complejidad 1000 por consulta, 120 peticiones por minuto por usuario (`429 DEMASIADAS_PETICIONES` con `Retry-After`), introspección y Apollo Sandbox solo fuera de producción, JSON de hasta 1 MB, `nosniff` y `no-referrer`. Si Keycloak no responde al pedir el JWKS: `SERVICIO_NO_DISPONIBLE` (servicio `keycloak`).
 - El esquema GraphQL sigue `docs/contratos/graphql-erp.md` de la carpeta general.
 
 ## Documentación
@@ -60,4 +61,4 @@ src/
 
 Conventional Commits en español e imperativo (`feat(obras): agrega consulta de obras`). Sin coautoría ni firmas de la IA.
 
-Trabajo en ramas `feat/NNN-nombre` con *pull request* y revisión; nunca hagas *push* a `main` (está protegida). Detalle y definición de terminado: `docs/flujo-trabajo.md` del repo `supervision-docs`.
+Git Flow: ramas `feat/`, `fix/`, `docs/`… desde `develop`, que entran por *pull request*; nunca hagas *push* a `main` ni a `develop` (están protegidas). El agente crea y fusiona los PR (merge normal, sin squash) hacia `develop` cuando todas las pruebas pasan. Detalle y definición de terminado: `docs/flujo-trabajo.md` del repo `supervision-docs`.

@@ -13,9 +13,10 @@ src/
   main.ts
   app.module.ts
   salud/                 salud.resolver.ts
-  comun/
-    auth/                jwt.guard.ts (jose + JWKS), roles.guard.ts, roles.decorator.ts, contexto.ts (usuario + token en el contexto GraphQL)
-    http/                cliente-servicio.ts (fetch con token, X-Request-Id, timeout 3 s, reintento en consultas), errores.ts (Problem Details → GraphQLError con extensions.codigo)
+  comun/                 comun.module.ts (@Global: ClienteServicio)
+    graphql/             limites.ts (regla de validación: profundidad 8, complejidad 1000)
+    auth/                jwt.guard.ts (guard global), verificador-token.ts (jose + JWKS: firma, emisor, audiencia), publico.decorator.ts (@Publico: solo salud), limitador.ts (120 peticiones por minuto por usuario), roles.guard.ts, roles.decorator.ts, contexto.ts (usuario + token en el contexto GraphQL)
+    http/                cliente-servicio.ts (fetch con token, X-Request-Id, timeout 3 s, reintento en consultas), errores.ts (Problem Details → GraphQLError con extensions.codigo), request-id.middleware.ts
     keycloak/            keycloak-admin.cliente.ts (client credentials + caché), usuarios.resolver.ts
     dataloaders/         dataloaders.ts (se crean por petición)
   obras/                 un módulo por área: obras, planillas, materiales, finanzas, tablero (y supervision en capas 4–5)
@@ -26,6 +27,10 @@ src/
     obras.module.ts
 test/
   obras.e2e-spec.ts      GraphQL contra servicios simulados (servidores HTTP de prueba)
+  app.e2e-spec.ts        salud, token y reenvío de token y X-Request-Id
+  obras.e2e-spec.ts      consulta obras: lista, filtros y Obras caído
+  seguridad.e2e-spec.ts  encabezados, profundidad, límite de peticiones y Keycloak caído
+  soporte/               tokens-prueba.ts (claves RSA locales en lugar del JWKS de Keycloak)
 ```
 
 ## Reglas
