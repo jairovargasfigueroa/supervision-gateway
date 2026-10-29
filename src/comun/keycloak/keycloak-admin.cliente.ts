@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { GraphQLError } from 'graphql';
+import type { ContextoGraphql } from '../auth/contexto.js';
+import { cadaUno, cargador } from '../dataloaders/dataloaders.js';
 import { servicioNoDisponible } from '../http/errores.js';
 import type { Usuario } from './usuario.modelo.js';
 
@@ -14,6 +16,8 @@ export interface OpcionesKeycloakAdmin {
   tiempoMaximoMs: number;
   /** Segundos antes del vencimiento en que el token deja de usarse (se pide otro). */
   margenSegundos?: number;
+  /** Cuánto se guarda en memoria cada usuario pedido por id (006: 5 minutos). */
+  cacheUsuariosMs?: number;
 }
 
 /** Usuario tal como lo devuelve la API de administración de Keycloak (representación breve). */
@@ -41,6 +45,11 @@ export class KeycloakAdminCliente {
   private readonly registro = new Logger(KeycloakAdminCliente.name);
   private token?: { valor: string; venceEn: number };
   private pidiendoToken?: Promise<string>;
+  /** Usuarios por id (nombres de las asignaciones y de quien registró cada foto), hasta `cacheUsuariosMs`. */
+  private readonly usuarios = new Map<
+    string,
+    { usuario: Usuario; venceEn: number }
+  >();
 
   constructor(
     private readonly opciones: OpcionesKeycloakAdmin,
@@ -58,13 +67,41 @@ export class KeycloakAdminCliente {
       .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   }
 
-  /** Un usuario por su id; null si Keycloak no lo conoce. */
+  /**
+   * Un usuario por su id; null si Keycloak no lo conoce. Los encontrados se guardan en memoria 5 minutos (006); los
+   * desconocidos y los errores no se guardan.
+   */
   async usuarioPorId(id: string, requestId: string): Promise<Usuario | null> {
-    const usuario = await this.consultar<UsuarioKeycloak>(
+    const guardado = this.usuarios.get(id);
+    if (guardado && this.ahora() < guardado.venceEn) return guardado.usuario;
+    const encontrado = await this.consultar<UsuarioKeycloak>(
       `/users/${encodeURIComponent(id)}`,
       requestId,
     );
-    return usuario ? aUsuario(usuario) : null;
+    if (!encontrado) {
+      this.usuarios.delete(id);
+      return null;
+    }
+    const usuario = aUsuario(encontrado);
+    this.usuarios.set(id, {
+      usuario,
+      venceEn: this.ahora() + (this.opciones.cacheUsuariosMs ?? 5 * 60_000),
+    });
+    return usuario;
+  }
+
+  /** `usuarioPorId` con el DataLoader de la petición: el mismo id en varios campos se pide una sola vez. */
+  usuarioEnPeticion(
+    id: string,
+    contexto: ContextoGraphql,
+  ): Promise<Usuario | null> {
+    return cargador<string, Usuario | null>(
+      contexto,
+      'usuarios',
+      cadaUno((usuarioId) =>
+        this.usuarioPorId(usuarioId, contexto.req.requestId),
+      ),
+    ).load(id);
   }
 
   /** GET a la API de administración del realm; null si responde 404. Reintenta una vez (es una consulta). */

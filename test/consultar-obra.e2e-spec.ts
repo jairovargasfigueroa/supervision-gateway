@@ -82,6 +82,36 @@ const CATALOGO = [
   material('m2', 'ACE-12', 'Acero de 12 mm'),
 ];
 
+const CONTRATO_REST = {
+  id: OBRA_REST.contrato.contratoId,
+  obraId: ID_OBRA,
+  monto: 1250000,
+  plazoDias: 300,
+  anticipoPct: 10,
+  retencionPct: 7,
+  firmadoEn: '2026-10-20',
+  saldoDisponible: 1180000,
+  totalCobrado: 41881.8,
+  totalReservado: 0,
+};
+const COBRO_REST = {
+  id: 'd0000000-0000-4000-8000-000000000201',
+  numero: 'COB-2027-0003',
+  obraId: ID_OBRA,
+  planillaId: 'e0000000-0000-4000-8000-000000000201',
+  montoNeto: 41881.8,
+  emitidoEn: '2027-04-02',
+  venceEn: '2027-05-02',
+  estado: 'PENDIENTE',
+};
+const CONSULTA_FINANZAS = `query ($id: ID!) {
+  obra(id: $id) {
+    nombre
+    finanzas { saldoDisponible totalCobrado totalReservado }
+    cobros { id numero planillaId montoNeto emitidoEn venceEn estado }
+  }
+}`;
+
 /** Responde según la ruta (sin la consulta); lo que no está en el mapa responde 404. */
 const porRuta =
   (mapa: Record<string, Respuesta>) =>
@@ -125,6 +155,22 @@ describe('Consultar obra (e2e)', () => {
         cuerpo: { items: CATALOGO, total: 2, pagina: 1, tamano: 100 },
       },
     });
+    finanzas.responder = porRuta({
+      '/contratos': { cuerpo: [CONTRATO_REST] },
+      '/cobros': {
+        cuerpo: { items: [COBRO_REST], total: 1, pagina: 1, tamano: 100 },
+      },
+    });
+    keycloak.responder = ({ ruta }) =>
+      ruta.endsWith('/protocol/openid-connect/token')
+        ? { cuerpo: { access_token: 'token-gateway', expires_in: 300 } }
+        : {
+            cuerpo: {
+              id: ruta.split('/').pop(),
+              firstName: 'Usuario',
+              lastName: ruta.slice(-3),
+            },
+          };
   });
 
   afterAll(async () => {
@@ -250,6 +296,104 @@ describe('Consultar obra (e2e)', () => {
         codigo: 'SERVICIO_NO_DISPONIBLE',
         servicio: 'materiales',
       });
+    });
+  });
+
+  describe('finanzas y cobros', () => {
+    it('admin recibe saldo, total cobrado y cobros de Finanzas', async () => {
+      const respuesta = await consultar(CONSULTA_FINANZAS, { id: ID_OBRA });
+      expect(respuesta.body.errors).toBeUndefined();
+      const { obraId: _obraId, ...cobro } = COBRO_REST;
+      expect(respuesta.body.data.obra).toEqual({
+        nombre: OBRA_REST.nombre,
+        finanzas: {
+          saldoDisponible: 1180000,
+          totalCobrado: 41881.8,
+          totalReservado: 0,
+        },
+        cobros: [cobro],
+      });
+      expect(finanzas.rutas.sort()).toEqual([
+        `/cobros?obraId=${ID_OBRA}&tamano=100`,
+        `/contratos?obraId=${ID_OBRA}`,
+      ]);
+      expect(finanzas.pedidos[0].encabezados.authorization).toMatch(/^Bearer /);
+    });
+
+    it('gerente también los ve; si la obra no tiene contrato en Finanzas, finanzas es null sin error', async () => {
+      finanzas.responder = porRuta({
+        '/contratos': { cuerpo: [] },
+        '/cobros': { cuerpo: { items: [], total: 0, pagina: 1, tamano: 100 } },
+      });
+      const respuesta = await consultar(CONSULTA_FINANZAS, { id: ID_OBRA }, [
+        'gerente',
+      ]);
+      expect(respuesta.body.errors).toBeUndefined();
+      expect(respuesta.body.data.obra).toMatchObject({
+        finanzas: null,
+        cobros: [],
+      });
+    });
+
+    it('residente recibe finanzas y cobros en null, sin error y sin llamar a Finanzas', async () => {
+      const respuesta = await consultar(CONSULTA_FINANZAS, { id: ID_OBRA }, [
+        'residente',
+      ]);
+      expect(respuesta.body.errors).toBeUndefined();
+      expect(respuesta.body.data.obra).toEqual({
+        nombre: OBRA_REST.nombre,
+        finanzas: null,
+        cobros: null,
+      });
+      expect(finanzas.pedidos).toHaveLength(0);
+    });
+
+    it('si Finanzas no responde, solo finanzas y cobros vuelven null con SERVICIO_NO_DISPONIBLE', async () => {
+      finanzas.responder = () => ({ estado: 503 });
+      const respuesta = await consultar(CONSULTA_FINANZAS, { id: ID_OBRA });
+      expect(respuesta.body.data.obra).toEqual({
+        nombre: OBRA_REST.nombre,
+        finanzas: null,
+        cobros: null,
+      });
+      expect(
+        respuesta.body.errors.map(
+          (e: { path: string[]; extensions: Record<string, unknown> }) => [
+            e.path.join('.'),
+            e.extensions.codigo,
+            e.extensions.servicio,
+          ],
+        ),
+      ).toEqual(
+        expect.arrayContaining([
+          ['obra.finanzas', 'SERVICIO_NO_DISPONIBLE', 'finanzas'],
+          ['obra.cobros', 'SERVICIO_NO_DISPONIBLE', 'finanzas'],
+        ]),
+      );
+    });
+  });
+
+  describe('nombres de usuarios', () => {
+    const CONSULTA_USUARIOS = `query ($id: ID!) {
+      obra(id: $id) { residente { id nombre } maestro { nombre } almacenero { nombre } cliente { nombre } }
+    }`;
+
+    it('resuelve las asignaciones en Keycloak y las guarda 5 minutos entre peticiones', async () => {
+      const primera = await consultar(CONSULTA_USUARIOS, { id: ID_OBRA });
+      expect(primera.body.errors).toBeUndefined();
+      expect(primera.body.data.obra).toEqual({
+        residente: { id: ASIGNACIONES.residenteId, nombre: 'Usuario 203' },
+        maestro: { nombre: 'Usuario 204' },
+        almacenero: { nombre: 'Usuario 205' },
+        cliente: { nombre: 'Usuario 206' },
+      });
+      const usuariosPedidos = () =>
+        keycloak.rutas.filter((ruta) => ruta.includes('/users/'));
+      expect(usuariosPedidos()).toHaveLength(4);
+
+      const segunda = await consultar(CONSULTA_USUARIOS, { id: ID_OBRA });
+      expect(segunda.body.data).toEqual(primera.body.data);
+      expect(usuariosPedidos()).toHaveLength(4);
     });
   });
 });

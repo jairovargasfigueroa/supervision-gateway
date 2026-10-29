@@ -65,7 +65,7 @@ export class ObrasResolver {
     return this.obrasCliente.registrar(entrada, contexto);
   }
 
-  // Asignaciones: cada una se pide a Keycloak por separado; si Keycloak falla, solo ese campo vuelve null.
+  // Asignaciones: nombres desde Keycloak (caché de 5 min y DataLoader); si Keycloak falla, solo ese campo vuelve null.
 
   @ResolveField(() => Usuario, { nullable: true })
   residente(
@@ -105,6 +105,6 @@ export class ObrasResolver {
     contexto: ContextoGraphql,
   ): Promise<Usuario | null> {
     const id = obra.asignaciones?.[campo];
-    return id ? this.keycloak.usuarioPorId(id, contexto.req.requestId) : null;
+    return id ? this.keycloak.usuarioEnPeticion(id, contexto) : null;
   }
 }

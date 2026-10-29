@@ -26,3 +26,16 @@ export function rolesEfectivos(
   }
   return [...roles];
 }
+
+/** ¿El usuario de la petición tiene, entre sus roles efectivos, alguno de estos? (campos que dependen del rol, 006) */
+export function tieneAlgunRol(
+  usuario: { roles: readonly string[]; azp: string } | undefined,
+  roles: readonly string[],
+): boolean {
+  return (
+    !!usuario &&
+    rolesEfectivos(usuario.roles, usuario.azp).some((rol) =>
+      roles.includes(rol),
+    )
+  );
+}
