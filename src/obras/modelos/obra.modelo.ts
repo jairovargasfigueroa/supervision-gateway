@@ -23,7 +23,7 @@ export class ContratoObra {
 
 /**
  * Detalle de la obra (docs/contratos.md). Los datos de Obras están aquí; los campos de otros servicios (asignaciones,
- * finanzas, cobros, materialComparado, fotos) los agrega un @ResolveField cada uno. `planillas` llega con la 007.
+ * finanzas, cobros, materialComparado, fotos, planillas) los agrega un @ResolveField cada uno.
  */
 @ObjectType()
 export class Obra {
