@@ -396,4 +396,132 @@ describe('Consultar obra (e2e)', () => {
       expect(usuariosPedidos()).toHaveLength(4);
     });
   });
+
+  describe('materialComparado(periodo)', () => {
+    const CONSULTA_MATERIAL = `query ($id: ID!, $periodo: String!) {
+      obra(id: $id) {
+        nombre
+        partidas { insumos { material { codigo } } }
+        materialComparado(periodo: $periodo) {
+          periodo hayPlanilla
+          filas { partidaId partidaCodigo material { id nombre } previsto usado diferencia excedido }
+        }
+      }
+    }`;
+
+    beforeEach(() => {
+      obras.responder = porRuta({
+        [`/obras/${ID_OBRA}`]: { cuerpo: OBRA_REST },
+        [`/obras/${ID_OBRA}/material-previsto`]: {
+          cuerpo: {
+            periodo: '2027-02',
+            hayPlanilla: true,
+            items: [
+              { partidaId: 'p1', materialId: 'm1', cantidadPrevista: 55 },
+              { partidaId: 'p1', materialId: 'm2', cantidadPrevista: 400 },
+            ],
+          },
+        },
+      });
+      materiales.responder = porRuta({
+        '/materiales': {
+          cuerpo: { items: CATALOGO, total: 2, pagina: 1, tamano: 100 },
+        },
+        [`/obras/${ID_OBRA}/consumos`]: {
+          cuerpo: [
+            { partidaId: 'p1', materialId: 'm1', cantidad: 70 },
+            { partidaId: 'p2', materialId: 'm1', cantidad: 3 },
+          ],
+        },
+      });
+    });
+
+    it('une previsto (Obras), consumos y nombres (Materiales) y marca lo excedido', async () => {
+      const respuesta = await consultar(CONSULTA_MATERIAL, {
+        id: ID_OBRA,
+        periodo: '2027-02',
+      });
+      expect(respuesta.body.errors).toBeUndefined();
+      expect(respuesta.body.data.obra.materialComparado).toEqual({
+        periodo: '2027-02',
+        hayPlanilla: true,
+        filas: [
+          {
+            partidaId: 'p1',
+            partidaCodigo: 'P-01',
+            material: { id: 'm2', nombre: 'Acero de 12 mm' },
+            previsto: 400,
+            usado: 0,
+            diferencia: -400,
+            excedido: false,
+          },
+          {
+            partidaId: 'p1',
+            partidaCodigo: 'P-01',
+            material: { id: 'm1', nombre: 'Cemento IP-30' },
+            previsto: 55,
+            usado: 70,
+            diferencia: 15,
+            excedido: true,
+          },
+          {
+            partidaId: 'p2',
+            partidaCodigo: 'P-02',
+            material: { id: 'm1', nombre: 'Cemento IP-30' },
+            previsto: 0,
+            usado: 3,
+            diferencia: 3,
+            excedido: true,
+          },
+        ],
+      });
+      expect(obras.rutas).toContain(
+        `/obras/${ID_OBRA}/material-previsto?periodo=2027-02`,
+      );
+      expect(materiales.rutas).toContain(
+        `/obras/${ID_OBRA}/consumos?periodo=2027-02`,
+      );
+      // El catálogo se pide una sola vez aunque lo usen los insumos y la comparación
+      expect(
+        materiales.rutas.filter((ruta) => ruta.startsWith('/materiales')),
+      ).toHaveLength(1);
+    });
+
+    it('si Materiales no responde, solo materialComparado (y los insumos) vuelven null', async () => {
+      materiales.responder = () => ({ estado: 503 });
+      const respuesta = await consultar(CONSULTA_MATERIAL, {
+        id: ID_OBRA,
+        periodo: '2027-02',
+      });
+      expect(respuesta.body.data.obra.nombre).toBe(OBRA_REST.nombre);
+      expect(respuesta.body.data.obra.materialComparado).toBeNull();
+      const error = respuesta.body.errors.find(
+        (e: { path: string[] }) =>
+          e.path.join('.') === 'obra.materialComparado',
+      );
+      expect(error.extensions).toMatchObject({
+        codigo: 'SERVICIO_NO_DISPONIBLE',
+        servicio: 'materiales',
+      });
+    });
+
+    it('un 404 OBRA_NO_ENCONTRADA de material-previsto llega con su codigo en el campo', async () => {
+      obras.responder = porRuta({
+        [`/obras/${ID_OBRA}`]: { cuerpo: OBRA_REST },
+        [`/obras/${ID_OBRA}/material-previsto`]: {
+          estado: 404,
+          cuerpo: { title: 'Obra no encontrada', codigo: 'OBRA_NO_ENCONTRADA' },
+        },
+      });
+      const respuesta = await consultar(CONSULTA_MATERIAL, {
+        id: ID_OBRA,
+        periodo: '2027-02',
+      });
+      expect(respuesta.body.data.obra.materialComparado).toBeNull();
+      expect(respuesta.body.errors[0]).toMatchObject({
+        path: ['obra', 'materialComparado'],
+        extensions: { codigo: 'OBRA_NO_ENCONTRADA', servicio: 'obras' },
+      });
+    });
+  });
 });

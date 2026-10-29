@@ -70,6 +70,13 @@ export interface RegistrarObraRest {
   }[];
 }
 
+/** Material previsto del periodo (`GET /obras/{id}/material-previsto`, 006). */
+export interface MaterialPrevistoRest {
+  periodo: string;
+  hayPlanilla: boolean;
+  items: { partidaId: string; materialId: string; cantidadPrevista: number }[];
+}
+
 /** Llamadas REST a Obras (docs/contratos.md, «Consume»). Los errores llegan con su `codigo` (ClienteServicio). */
 @Injectable()
 export class ObrasCliente {
@@ -95,6 +102,19 @@ export class ObrasCliente {
     return this.cliente.consultar<ObraRest>(
       'obras',
       `/obras/${encodeURIComponent(id)}`,
+      contexto,
+    );
+  }
+
+  /** `GET /obras/{id}/material-previsto?periodo=AAAA-MM` (006): previsto 0 y `hayPlanilla: false` sin planilla. */
+  materialPrevisto(
+    id: string,
+    periodo: string,
+    contexto: ContextoGraphql,
+  ): Promise<MaterialPrevistoRest> {
+    return this.cliente.consultar<MaterialPrevistoRest>(
+      'obras',
+      `/obras/${encodeURIComponent(id)}/material-previsto?periodo=${encodeURIComponent(periodo)}`,
       contexto,
     );
   }

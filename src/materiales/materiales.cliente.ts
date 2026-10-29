@@ -24,6 +24,13 @@ export interface MaterialRest {
   atributos?: { nombre: string; valor: string }[] | null;
 }
 
+/** Consumo del periodo por partida y material (`GET /obras/{obraId}/consumos`). */
+export interface ConsumoRest {
+  partidaId: string;
+  materialId: string;
+  cantidad: number;
+}
+
 /** Llamadas REST a Materiales (docs/contratos.md, «Consume»). Los errores llegan con su `codigo` (ClienteServicio). */
 @Injectable()
 export class MaterialesCliente {
@@ -79,6 +86,19 @@ export class MaterialesCliente {
             material,
           ]),
         ),
+    );
+  }
+
+  /** `GET /obras/{obraId}/consumos?periodo=AAAA-MM` (006): suma de salidas por partida y material. */
+  consumos(
+    obraId: string,
+    periodo: string,
+    contexto: ContextoGraphql,
+  ): Promise<ConsumoRest[]> {
+    return this.cliente.consultar<ConsumoRest[]>(
+      'materiales',
+      `/obras/${encodeURIComponent(obraId)}/consumos?periodo=${encodeURIComponent(periodo)}`,
+      contexto,
     );
   }
 

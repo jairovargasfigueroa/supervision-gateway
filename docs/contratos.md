@@ -138,6 +138,15 @@ type Mutation {
 }
 ```
 
+### Cómo se resuelven los campos de `Obra` (006)
+
+- `residente`, `maestro`, `almacenero`, `cliente` y `Foto.registradoPor`: Keycloak (`GET /admin/realms/supervision/users/{id}`), con caché en memoria de 5 minutos por usuario (no se guardan los desconocidos ni los errores) y DataLoader por petición.
+- `Insumo.material` y `FilaComparacion.material`: catálogo de Materiales (`GET /materiales`, de a 100 y todas las páginas, activos e inactivos), pedido una sola vez por petición.
+- `finanzas`: `GET /contratos?obraId=`; `null` sin error si el rol efectivo no es `admin` ni `gerente` (no se llama a Finanzas) o si la obra todavía no tiene contrato en Finanzas.
+- `cobros`: `GET /cobros?obraId=&tamano=100` (solo la primera página); `null` sin error si el rol efectivo no es `admin` ni `gerente`.
+- `materialComparado(periodo)`: `GET /obras/{id}/material-previsto?periodo=` (Obras) + `GET /obras/{id}/consumos?periodo=` (Materiales) + catálogo. Una fila por cada par partida–material que aparece en el previsto o en los consumos (lo que falta de un lado cuenta 0). `diferencia = usado − previsto` (positiva: se usó más de lo previsto); `excedido = usado > 1,20 × previsto` (calculado en milésimas, sin errores de redondeo; con previsto 0, cualquier uso queda excedido). Orden: el de las partidas de la obra y, dentro de cada una, por código de material. Si Obras o Materiales falla, el campo vuelve `null` con el error de ese servicio.
+- `planillas`: todavía no se expone; llega con la 007, cuando Obras tenga `GET /obras/{id}/planillas`.
+
 Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, reportes por voz) en sus especificaciones.
 
 ## Consume (REST)

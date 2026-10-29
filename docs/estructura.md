@@ -20,13 +20,14 @@ src/
     keycloak/            keycloak-admin.cliente.ts (client credentials + caché del token; usuarios por id con caché de 5 min y DataLoader de la petición), usuarios.resolver.ts (usuarios(rol)), usuario.modelo.ts (Usuario y enum Rol)
     dataloaders/         dataloaders.ts (se crean por petición: cargador(contexto, nombre, carga), cadaUno, unaVezPorPeticion)
   obras/                 un módulo por área: obras, planillas, materiales, finanzas, tablero (y supervision en capas 4–5)
-    obras.cliente.ts     llamadas REST a Obras
+    obras.cliente.ts     llamadas REST a Obras (GET /obras, GET /obras/{id}, GET /obras/{id}/material-previsto, POST /obras); el módulo exporta ObrasCliente
     obras.resolver.ts    consultas, mutaciones y @ResolveField
     modelos/             obra-resumen.modelo.ts, obra.modelo.ts (Obra, ContratoObra), partida.modelo.ts (Partida, Insumo), ... (@ObjectType)
     entradas/            registrar-obra.entrada.ts (@InputType)
     obras.module.ts
   materiales/            003: materiales.cliente.ts (GET/POST/PUT /materiales, catálogo completo por petición, GET /obras/{id}/stock, PUT .../minimo), materiales.resolver.ts (materiales, stockObra, crearMaterial, actualizarMaterial, definirStockMinimo)
-                         006: insumos.resolver.ts (Insumo.material desde el catálogo)
+                         006: insumos.resolver.ts (Insumo.material desde el catálogo), material-comparado.resolver.ts (Obra.materialComparado), comparacion.ts (une previsto y consumos; diferencia y excedido), GET /obras/{id}/consumos
+    modelos/             comparacion-material.modelo.ts (ComparacionMaterial, FilaComparacion)
     modelos/             material.modelo.ts (Material, Atributo, MaterialesPagina, enum TipoMaterial), stock-material.modelo.ts (StockMaterial, enum EstadoStock)
     entradas/            material.entrada.ts (MaterialEntrada, AtributoEntrada)
     materiales.module.ts
