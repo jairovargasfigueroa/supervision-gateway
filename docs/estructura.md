@@ -15,7 +15,7 @@ src/
   salud/                 salud.resolver.ts
   comun/                 comun.module.ts (@Global: ClienteServicio)
     graphql/             limites.ts (regla de validación: profundidad 8, complejidad 1000)
-    auth/                jwt.guard.ts (guard global), verificador-token.ts (jose + JWKS: firma, emisor, audiencia), publico.decorator.ts (@Publico: solo salud), limitador.ts (120 peticiones por minuto por usuario), roles.guard.ts, roles.decorator.ts, contexto.ts (usuario + token en el contexto GraphQL)
+    auth/                jwt.guard.ts (guard global), verificador-token.ts (jose + JWKS: firma, emisor, audiencia), publico.decorator.ts (@Publico: solo salud), limitador.ts (120 peticiones por minuto por usuario), roles.guard.ts (después del JwtGuard; SIN_PERMISO), roles.decorator.ts (@Roles), roles-efectivos.ts (regla del azp), contexto.ts (usuario + token en el contexto GraphQL)
     http/                cliente-servicio.ts (fetch con token, X-Request-Id, timeout 3 s, reintento en consultas), errores.ts (Problem Details → GraphQLError con extensions.codigo), request-id.middleware.ts
     keycloak/            keycloak-admin.cliente.ts (client credentials + caché), usuarios.resolver.ts
     dataloaders/         dataloaders.ts (se crean por petición)

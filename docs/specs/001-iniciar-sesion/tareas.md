@@ -4,5 +4,5 @@ Requisitos y diseño: `docs/specs/001-iniciar-sesion/` de la carpeta que agrupa 
 
 Marca cada tarea al terminarla (con sus pruebas y su commit).
 
-- [ ] `RolesGuard` para resolvers con `@Roles()` y mapeo de 401/403 a errores GraphQL
+- [x] `RolesGuard` para resolvers con `@Roles()` y mapeo de 401/403 a errores GraphQL
 - [ ] Pruebas de un resolver protegido por rol
