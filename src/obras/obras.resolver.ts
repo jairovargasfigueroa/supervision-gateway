@@ -1,14 +1,23 @@
-import { Args, Context, Query, Resolver } from '@nestjs/graphql';
+import { Args, Context, ID, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
 import { Roles } from '../comun/auth/roles.decorator.js';
+import { KeycloakAdminCliente } from '../comun/keycloak/keycloak-admin.cliente.js';
+import { Usuario } from '../comun/keycloak/usuario.modelo.js';
+import { RegistrarObraEntrada } from './entradas/registrar-obra.entrada.js';
 import { EstadoObra, ObraResumen } from './modelos/obra-resumen.modelo.js';
-import { ObrasCliente } from './obras.cliente.js';
+import { Obra } from './modelos/obra.modelo.js';
+import { ObrasCliente, type ObraRest } from './obras.cliente.js';
 
-@Resolver(() => ObraResumen)
+type Asignacion = keyof ObraRest['asignaciones'];
+
+@Resolver(() => Obra)
 export class ObrasResolver {
-  constructor(private readonly cliente: ObrasCliente) {}
+  constructor(
+    private readonly obrasCliente: ObrasCliente,
+    private readonly keycloak: KeycloakAdminCliente,
+  ) {}
 
-  /** Lista de obras que ve el usuario; Obras filtra por visibilidad (fase 1: siempre vacía; la completa la 006). */
+  /** Lista de obras que ve el usuario; Obras filtra por visibilidad (la completa la 006). */
   @Roles('admin', 'gerente', 'residente')
   @Query(() => [ObraResumen])
   obras(
@@ -16,6 +25,50 @@ export class ObrasResolver {
     @Args('estado', { type: () => EstadoObra, nullable: true }) estado?: EstadoObra,
     @Args('busqueda', { nullable: true }) busqueda?: string,
   ): Promise<ObraResumen[]> {
-    return this.cliente.listar({ estado, busqueda }, contexto);
+    return this.obrasCliente.listar({ estado, busqueda }, contexto);
+  }
+
+  /** Detalle de una obra. Si el usuario no la ve, Obras responde 404 y el campo vuelve null con OBRA_NO_ENCONTRADA. */
+  @Roles('admin', 'gerente', 'residente')
+  @Query(() => Obra, { nullable: true })
+  obra(@Context() contexto: ContextoGraphql, @Args('id', { type: () => ID }) id: string): Promise<ObraRest> {
+    return this.obrasCliente.obtener(id, contexto);
+  }
+
+  /** 002: registra la obra en Obras (queda SIN_CONTRATO). Los errores llegan con el codigo de Obras. */
+  @Roles('admin')
+  @Mutation(() => Obra)
+  registrarObra(
+    @Context() contexto: ContextoGraphql,
+    @Args('entrada', { type: () => RegistrarObraEntrada }) entrada: RegistrarObraEntrada,
+  ): Promise<ObraRest> {
+    return this.obrasCliente.registrar(entrada, contexto);
+  }
+
+  // Asignaciones: cada una se pide a Keycloak por separado; si Keycloak falla, solo ese campo vuelve null.
+
+  @ResolveField(() => Usuario, { nullable: true })
+  residente(@Parent() obra: ObraRest, @Context() contexto: ContextoGraphql): Promise<Usuario | null> {
+    return this.usuario(obra, 'residenteId', contexto);
+  }
+
+  @ResolveField(() => Usuario, { nullable: true })
+  maestro(@Parent() obra: ObraRest, @Context() contexto: ContextoGraphql): Promise<Usuario | null> {
+    return this.usuario(obra, 'maestroId', contexto);
+  }
+
+  @ResolveField(() => Usuario, { nullable: true })
+  almacenero(@Parent() obra: ObraRest, @Context() contexto: ContextoGraphql): Promise<Usuario | null> {
+    return this.usuario(obra, 'almaceneroId', contexto);
+  }
+
+  @ResolveField(() => Usuario, { nullable: true })
+  cliente(@Parent() obra: ObraRest, @Context() contexto: ContextoGraphql): Promise<Usuario | null> {
+    return this.usuario(obra, 'clienteId', contexto);
+  }
+
+  private async usuario(obra: ObraRest, campo: Asignacion, contexto: ContextoGraphql): Promise<Usuario | null> {
+    const id = obra.asignaciones?.[campo];
+    return id ? this.keycloak.usuarioPorId(id, contexto.req.requestId) : null;
   }
 }

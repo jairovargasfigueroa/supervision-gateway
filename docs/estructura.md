@@ -22,7 +22,7 @@ src/
   obras/                 un módulo por área: obras, planillas, materiales, finanzas, tablero (y supervision en capas 4–5)
     obras.cliente.ts     llamadas REST a Obras
     obras.resolver.ts    consultas, mutaciones y @ResolveField
-    modelos/             obra.modelo.ts, partida.modelo.ts, ... (@ObjectType)
+    modelos/             obra-resumen.modelo.ts, obra.modelo.ts (Obra, ContratoObra), partida.modelo.ts (Partida, Insumo), ... (@ObjectType)
     entradas/            registrar-obra.entrada.ts (@InputType)
     obras.module.ts
 test/
