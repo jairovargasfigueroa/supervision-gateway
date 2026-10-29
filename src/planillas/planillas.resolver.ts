@@ -1,6 +1,7 @@
 import {
   Args,
   Context,
+  Float,
   ID,
   Int,
   Mutation,
@@ -11,11 +12,18 @@ import {
 } from '@nestjs/graphql';
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
 import { Roles } from '../comun/auth/roles.decorator.js';
+import { tieneAlgunRol } from '../comun/auth/roles-efectivos.js';
 import { cadaUno, cargador } from '../comun/dataloaders/dataloaders.js';
+import { FinanzasCliente } from '../finanzas/finanzas.cliente.js';
+import { type Cobro, EstadoCobro } from '../finanzas/modelos/cobro.modelo.js';
 import { Obra } from '../obras/modelos/obra.modelo.js';
 import type { ObraRest } from '../obras/obras.cliente.js';
 import { GuardarPlanillaEntrada } from './entradas/guardar-planilla.entrada.js';
-import { Planilla, PlanillaResumen } from './modelos/planilla.modelo.js';
+import {
+  CobroPlanilla,
+  Planilla,
+  PlanillaResumen,
+} from './modelos/planilla.modelo.js';
 import {
   PlanillasCliente,
   type PlanillaResumenRest,
@@ -79,6 +87,68 @@ export class PlanillasResolver {
     @Args('version', { type: () => Int }) version: number,
   ): Promise<PlanillaRest> {
     return this.planillasCliente.presentar(id, version, contexto);
+  }
+
+  /** 008: id y numero del cobro que Obras guardó al aprobarse la planilla; null mientras no tenga cobro. */
+  @ResolveField(() => CobroPlanilla, { nullable: true })
+  cobro(@Parent() planilla: PlanillaRest): CobroPlanilla | null {
+    const { cobroId, cobroNumero } = planilla;
+    if (!cobroId || !cobroNumero) return null;
+    return { id: cobroId, numero: cobroNumero };
+  }
+}
+
+/** Roles que ven el detalle del cobro en Finanzas (contrato GraphQL; Finanzas no tiene la regla de obras asignadas). */
+const ROLES_FINANZAS = ['admin', 'gerente'];
+
+/**
+ * 008: campos de CobroPlanilla que vienen de Finanzas (`GET /cobros/{id}`, un solo pedido por cobro y petición). Para
+ * otros roles vuelven null sin error y sin llamar a Finanzas; si Finanzas no responde, solo estos campos vuelven null
+ * con SERVICIO_NO_DISPONIBLE (id y numero llegan igual).
+ */
+@Resolver(() => CobroPlanilla)
+export class CobroPlanillaResolver {
+  constructor(private readonly finanzasCliente: FinanzasCliente) {}
+
+  @ResolveField(() => Float, { nullable: true })
+  montoNeto(
+    @Parent() cobro: CobroPlanilla,
+    @Context() contexto: ContextoGraphql,
+  ): Promise<number | null> {
+    return this.campo(cobro, contexto, (detalle) => detalle.montoNeto);
+  }
+
+  @ResolveField(() => String, { nullable: true })
+  emitidoEn(
+    @Parent() cobro: CobroPlanilla,
+    @Context() contexto: ContextoGraphql,
+  ): Promise<string | null> {
+    return this.campo(cobro, contexto, (detalle) => detalle.emitidoEn);
+  }
+
+  @ResolveField(() => String, { nullable: true })
+  venceEn(
+    @Parent() cobro: CobroPlanilla,
+    @Context() contexto: ContextoGraphql,
+  ): Promise<string | null> {
+    return this.campo(cobro, contexto, (detalle) => detalle.venceEn);
+  }
+
+  @ResolveField(() => EstadoCobro, { nullable: true })
+  estado(
+    @Parent() cobro: CobroPlanilla,
+    @Context() contexto: ContextoGraphql,
+  ): Promise<EstadoCobro | null> {
+    return this.campo(cobro, contexto, (detalle) => detalle.estado);
+  }
+
+  private async campo<T>(
+    cobro: CobroPlanilla,
+    contexto: ContextoGraphql,
+    elegir: (detalle: Cobro) => T,
+  ): Promise<T | null> {
+    if (!tieneAlgunRol(contexto.req.usuario, ROLES_FINANZAS)) return null;
+    return elegir(await this.finanzasCliente.cobro(cobro.id, contexto));
   }
 }
 
