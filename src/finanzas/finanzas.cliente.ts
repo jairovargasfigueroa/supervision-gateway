@@ -81,6 +81,21 @@ export class FinanzasCliente {
     ).load(obraId);
   }
 
+  /** `GET /cobros/{id}` (008; roles admin y gerente), con DataLoader: cada cobro se pide una sola vez por petición. */
+  cobro(id: string, contexto: ContextoGraphql): Promise<Cobro> {
+    return cargador<string, Cobro>(
+      contexto,
+      'cobro',
+      cadaUno((cobroId) =>
+        this.cliente.consultar<Cobro>(
+          'finanzas',
+          `/cobros/${encodeURIComponent(cobroId)}`,
+          contexto,
+        ),
+      ),
+    ).load(id);
+  }
+
   /** `GET /cobros/resumen` (009; roles admin y gerente): cobros vencidos y por vencer en 30 días. */
   resumenCobros(contexto: ContextoGraphql): Promise<ResumenCobrosRest> {
     return this.cliente.consultar<ResumenCobrosRest>(

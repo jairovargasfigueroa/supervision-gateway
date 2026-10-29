@@ -120,11 +120,13 @@ const porRuta =
 describe('Planillas (e2e)', () => {
   let app: INestApplication;
   const obras = new ServicioSimulado();
+  const finanzas = new ServicioSimulado();
   const keycloak = new ServicioSimulado();
   let firmar: Awaited<ReturnType<typeof crearClavesPrueba>>['firmar'];
 
   beforeAll(async () => {
     process.env.OBRAS_URL = await obras.escuchar();
+    process.env.FINANZAS_URL = await finanzas.escuchar();
     process.env.KEYCLOAK_URL = await keycloak.escuchar();
 
     const claves = await crearClavesPrueba();
@@ -139,6 +141,7 @@ describe('Planillas (e2e)', () => {
 
   beforeEach(() => {
     obras.reiniciar();
+    finanzas.reiniciar();
     keycloak.reiniciar();
     obras.responder = porRuta({
       [`/obras/${ID_OBRA}`]: { cuerpo: OBRA_REST },
@@ -150,6 +153,7 @@ describe('Planillas (e2e)', () => {
   afterAll(async () => {
     await app.close();
     obras.cerrar();
+    finanzas.cerrar();
     keycloak.cerrar();
   });
 
@@ -272,6 +276,158 @@ describe('Planillas (e2e)', () => {
         servicio: 'obras',
       });
       expect(obras.pedidos).toHaveLength(2);
+    });
+  });
+
+  describe('Planilla.cobro y observacion (008)', () => {
+    const ID_COBRO = 'd0000000-0000-4000-8000-000000000202';
+    /** Planilla aprobada: Obras guardó el cobro al recibir CobroEmitido. */
+    const APROBADA_REST = {
+      ...PLANILLA_REST,
+      estado: 'APROBADA',
+      cobroId: ID_COBRO,
+      cobroNumero: 'COB-2027-0002',
+    };
+    /** Contrato REST de Finanzas: `GET /cobros/{id}`. */
+    const COBRO_REST = {
+      id: ID_COBRO,
+      numero: 'COB-2027-0002',
+      obraId: ID_OBRA,
+      planillaId: ID_PLANILLA,
+      montoNeto: 41881.8,
+      emitidoEn: '2027-03-02',
+      venceEn: '2027-04-01',
+      estado: 'PENDIENTE',
+    };
+    const CONSULTA_COBRO = `query ($id: ID!) {
+      planilla(id: $id) { estado observacion cobro { id numero montoNeto emitidoEn venceEn estado } }
+    }`;
+
+    beforeEach(() => {
+      obras.responder = porRuta({
+        [`/planillas/${ID_PLANILLA}`]: { cuerpo: APROBADA_REST },
+      });
+      finanzas.responder = porRuta({
+        [`/cobros/${ID_COBRO}`]: { cuerpo: COBRO_REST },
+      });
+    });
+
+    it.each([['admin'], ['gerente']])(
+      '%s ve el número de Obras y el detalle de GET /cobros/{id} (un solo pedido a Finanzas)',
+      async (rol) => {
+        const respuesta = await consultar(CONSULTA_COBRO, { id: ID_PLANILLA }, [
+          rol,
+        ]);
+        expect(respuesta.body.errors).toBeUndefined();
+        expect(respuesta.body.data.planilla).toEqual({
+          estado: 'APROBADA',
+          observacion: null,
+          cobro: {
+            id: ID_COBRO,
+            numero: 'COB-2027-0002',
+            montoNeto: 41881.8,
+            emitidoEn: '2027-03-02',
+            venceEn: '2027-04-01',
+            estado: 'PENDIENTE',
+          },
+        });
+        expect(finanzas.rutas).toEqual([`/cobros/${ID_COBRO}`]);
+        const pedido = finanzas.pedidos[0];
+        expect(pedido.encabezados['x-request-id']).toBe('req-007');
+        expect(pedido.encabezados.authorization).toMatch(/^Bearer /);
+      },
+    );
+
+    it('el residente ve id y numero; el detalle de Finanzas vuelve null sin error y sin llamar a Finanzas', async () => {
+      const respuesta = await consultar(CONSULTA_COBRO, { id: ID_PLANILLA }, [
+        'residente',
+      ]);
+      expect(respuesta.body.errors).toBeUndefined();
+      expect(respuesta.body.data.planilla.cobro).toEqual({
+        id: ID_COBRO,
+        numero: 'COB-2027-0002',
+        montoNeto: null,
+        emitidoEn: null,
+        venceEn: null,
+        estado: null,
+      });
+      expect(finanzas.pedidos).toHaveLength(0);
+    });
+
+    it('si Finanzas no responde, solo el detalle vuelve null con SERVICIO_NO_DISPONIBLE (id y numero llegan)', async () => {
+      finanzas.responder = () => ({ estado: 503 });
+      const respuesta = await consultar(CONSULTA_COBRO, { id: ID_PLANILLA }, [
+        'gerente',
+      ]);
+      expect(respuesta.body.data.planilla).toEqual({
+        estado: 'APROBADA',
+        observacion: null,
+        cobro: {
+          id: ID_COBRO,
+          numero: 'COB-2027-0002',
+          montoNeto: null,
+          emitidoEn: null,
+          venceEn: null,
+          estado: null,
+        },
+      });
+      const errores = (
+        respuesta.body.errors as {
+          path: string[];
+          extensions: Record<string, unknown>;
+        }[]
+      )
+        .map((e) => [
+          e.path.join('.'),
+          e.extensions.codigo,
+          e.extensions.servicio,
+        ])
+        .sort((a, b) => a.join().localeCompare(b.join()));
+      expect(errores).toEqual([
+        ['planilla.cobro.emitidoEn', 'SERVICIO_NO_DISPONIBLE', 'finanzas'],
+        ['planilla.cobro.estado', 'SERVICIO_NO_DISPONIBLE', 'finanzas'],
+        ['planilla.cobro.montoNeto', 'SERVICIO_NO_DISPONIBLE', 'finanzas'],
+        ['planilla.cobro.venceEn', 'SERVICIO_NO_DISPONIBLE', 'finanzas'],
+      ]);
+      // Una consulta se reintenta una vez; el DataLoader evita un pedido por campo.
+      expect(finanzas.pedidos).toHaveLength(2);
+    });
+
+    it('sin cobro (todavía no aprobada) cobro es null y no se llama a Finanzas', async () => {
+      obras.responder = porRuta({
+        [`/planillas/${ID_PLANILLA}`]: {
+          cuerpo: { ...PLANILLA_REST, estado: 'APROBANDO' },
+        },
+      });
+      const respuesta = await consultar(CONSULTA_COBRO, { id: ID_PLANILLA }, [
+        'admin',
+      ]);
+      expect(respuesta.body.errors).toBeUndefined();
+      expect(respuesta.body.data.planilla).toEqual({
+        estado: 'APROBANDO',
+        observacion: null,
+        cobro: null,
+      });
+      expect(finanzas.pedidos).toHaveLength(0);
+    });
+
+    it('la planilla observada trae la observación (del cliente o de la saga) tal cual la da Obras', async () => {
+      obras.responder = porRuta({
+        [`/planillas/${ID_PLANILLA}`]: {
+          cuerpo: {
+            ...PLANILLA_REST,
+            estado: 'OBSERVADA',
+            observacion: 'Saldo del contrato insuficiente',
+          },
+        },
+      });
+      const respuesta = await consultar(CONSULTA_COBRO, { id: ID_PLANILLA });
+      expect(respuesta.body.errors).toBeUndefined();
+      expect(respuesta.body.data.planilla).toEqual({
+        estado: 'OBSERVADA',
+        observacion: 'Saldo del contrato insuficiente',
+        cobro: null,
+      });
     });
   });
 

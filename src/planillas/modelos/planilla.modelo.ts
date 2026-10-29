@@ -1,4 +1,5 @@
 import { Field, Float, ID, Int, ObjectType } from '@nestjs/graphql';
+import { EstadoCobro } from '../../finanzas/modelos/cobro.modelo.js';
 import { EstadoPlanilla } from '../../obras/modelos/obra-resumen.modelo.js';
 
 // Tipos de la 007 (docs/contratos.md): mismos nombres que el JSON de Obras. Los cálculos (montos, saldo, totales) los
@@ -64,7 +65,32 @@ export class LineaPlanilla {
   monto: number;
 }
 
-/** Detalle de `GET /planillas/{id}`. `cobro` (CobroPlanilla) llega con la 008. */
+/**
+ * Cobro de una planilla aprobada (008). `id` y `numero` salen de Obras (`cobroId`, `cobroNumero`) para todos los que
+ * ven la planilla; el resto lo da Finanzas (`GET /cobros/{id}`) solo para admin y gerente (null sin error para otros).
+ */
+@ObjectType()
+export class CobroPlanilla {
+  @Field(() => ID)
+  id: string;
+
+  @Field()
+  numero: string;
+
+  @Field(() => Float, { nullable: true })
+  montoNeto?: number | null;
+
+  @Field(() => String, { nullable: true })
+  emitidoEn?: string | null;
+
+  @Field(() => String, { nullable: true })
+  venceEn?: string | null;
+
+  @Field(() => EstadoCobro, { nullable: true })
+  estado?: EstadoCobro | null;
+}
+
+/** Detalle de `GET /planillas/{id}`. */
 @ObjectType()
 export class Planilla {
   @Field(() => ID)
@@ -107,8 +133,13 @@ export class Planilla {
   @Field(() => Float)
   retencionPct: number;
 
+  /** Observación del cliente o motivo del fallo de la saga (008); null si no tiene. */
   @Field(() => String, { nullable: true })
   observacion: string | null;
+
+  /** 008: lo resuelve PlanillasResolver.cobro desde cobroId y cobroNumero; null hasta que se aprueba. */
+  @Field(() => CobroPlanilla, { nullable: true })
+  cobro?: CobroPlanilla | null;
 
   @Field(() => [ID])
   fotoIds: string[];

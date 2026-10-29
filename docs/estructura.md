@@ -32,13 +32,13 @@ src/
     modelos/             material.modelo.ts (Material, Atributo, MaterialesPagina, enum TipoMaterial), stock-material.modelo.ts (StockMaterial, enum EstadoStock)
     entradas/            material.entrada.ts (MaterialEntrada, AtributoEntrada)
     materiales.module.ts
-  planillas/             007: planillas.cliente.ts (GET /obras/{id}/planillas, GET /planillas/{id}, POST /obras/{id}/planillas, PUT /planillas/{id}, POST /planillas/{id}/presentar), planillas.resolver.ts (planilla(id), crearPlanilla, guardarPlanilla, presentarPlanilla y Obra.planillas)
-    modelos/             planilla.modelo.ts (Planilla, LineaPlanilla, PlanillaResumen)
+  planillas/             007: planillas.cliente.ts (GET /obras/{id}/planillas, GET /planillas/{id}, POST /obras/{id}/planillas, PUT /planillas/{id}, POST /planillas/{id}/presentar), planillas.resolver.ts (planilla(id), crearPlanilla, guardarPlanilla, presentarPlanilla y Obra.planillas; 008: Planilla.cobro desde cobroId y cobroNumero, y CobroPlanillaResolver: montoNeto, emitidoEn, venceEn y estado con GET /cobros/{id} solo para admin y gerente)
+    modelos/             planilla.modelo.ts (Planilla, LineaPlanilla, PlanillaResumen, CobroPlanilla)
     entradas/            guardar-planilla.entrada.ts (GuardarPlanillaEntrada, LineaEntrada)
-    planillas.module.ts
+    planillas.module.ts  (importa FinanzasModule para el detalle del cobro, 008)
   tablero/               009: tablero.resolver.ts (tablero, Tablero.obras e indicadores, FilaTablero.materialesBajos e IndicadoresTablero), filas.ts (FilaTablero desde ObraResumen; diferencia), tablero.module.ts
     modelos/             tablero.modelo.ts (Tablero, IndicadoresTablero, FilaTablero, ResumenMonto)
-  finanzas/              006: finanzas.cliente.ts (GET /contratos?obraId=, GET /cobros?obraId=&tamano=100, con DataLoader; 009: GET /cobros/resumen), finanzas.resolver.ts (Obra.finanzas y Obra.cobros: null sin error si el rol no es admin ni gerente)
+  finanzas/              006: finanzas.cliente.ts (GET /contratos?obraId=, GET /cobros?obraId=&tamano=100, con DataLoader; 009: GET /cobros/resumen; 008: GET /cobros/{id} con DataLoader), finanzas.resolver.ts (Obra.finanzas y Obra.cobros: null sin error si el rol no es admin ni gerente)
     modelos/             finanzas-obra.modelo.ts (FinanzasObra), cobro.modelo.ts (Cobro, enum EstadoCobro)
     finanzas.module.ts
 test/
@@ -50,7 +50,7 @@ test/
   usuarios.e2e-spec.ts   usuarios(rol) contra un Keycloak simulado
   registrar-obra.e2e-spec.ts  registrarObra y obra(id): reenvío a POST /obras, errores 422 → extensions.codigo, SIN_PERMISO, 404, Keycloak caído
   materiales.e2e-spec.ts materiales, stockObra y mutaciones de la 003 contra un Materiales simulado: filtros y paginación, 409 CODIGO_MATERIAL_REPETIDO → extensions.codigo, 404/422, sin reintento en mutaciones, Materiales caído o lento, SIN_PERMISO
-  planillas.e2e-spec.ts  007: Obra.planillas, planilla(id) y mutaciones contra un Obras simulado
+  planillas.e2e-spec.ts  007: Obra.planillas, planilla(id) y mutaciones contra un Obras simulado; 008: Planilla.cobro por rol y con Finanzas caído
   tablero.e2e-spec.ts    009: tablero contra Obras, Materiales y Finanzas simulados (lote a Materiales en una sola llamada, cada servicio caído o lento)
   consultar-obra.e2e-spec.ts  006: obras y obra(id) completos contra Obras, Materiales, Finanzas y Keycloak simulados (DataLoader, respuesta parcial, servicio lento)
   soporte/               tokens-prueba.ts (claves RSA locales en lugar del JWKS de Keycloak), servicio-simulado.ts (servidor REST de prueba con demora configurable)
