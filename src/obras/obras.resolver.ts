@@ -5,7 +5,7 @@ import { ObrasCliente } from './obras.cliente.js';
 
 @Resolver(() => ObraResumen)
 export class ObrasResolver {
-  constructor(private readonly obras: ObrasCliente) {}
+  constructor(private readonly cliente: ObrasCliente) {}
 
   /** Lista de obras que ve el usuario; Obras filtra por visibilidad (fase 1: siempre vacía; la completa la 006). */
   @Query(() => [ObraResumen])
@@ -14,6 +14,6 @@ export class ObrasResolver {
     @Args('estado', { type: () => EstadoObra, nullable: true }) estado?: EstadoObra,
     @Args('busqueda', { nullable: true }) busqueda?: string,
   ): Promise<ObraResumen[]> {
-    return this.obras.listar({ estado, busqueda }, contexto);
+    return this.cliente.listar({ estado, busqueda }, contexto);
   }
 }
