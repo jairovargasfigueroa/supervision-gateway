@@ -8,6 +8,7 @@ import type { Request, Response } from 'express';
 import { Limitador } from './comun/auth/limitador.js';
 import { limitarConsultas } from './comun/graphql/limites.js';
 import { JwtGuard } from './comun/auth/jwt.guard.js';
+import { RolesGuard } from './comun/auth/roles.guard.js';
 import { VERIFICADOR_TOKEN, VerificadorToken } from './comun/auth/verificador-token.js';
 import { ComunModule } from './comun/comun.module.js';
 import { RequestIdMiddleware } from './comun/http/request-id.middleware.js';
@@ -50,6 +51,8 @@ const enProduccion = process.env.NODE_ENV === 'production';
     // 120 peticiones por minuto por usuario (convenciones, «Seguridad»)
     { provide: Limitador, useValue: new Limitador(120) },
     { provide: APP_GUARD, useClass: JwtGuard },
+    // Después del token (los APP_GUARD corren en el orden en que se registran)
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule implements NestModule {

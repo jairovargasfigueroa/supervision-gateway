@@ -1,5 +1,6 @@
 import { Args, Context, Query, Resolver } from '@nestjs/graphql';
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
+import { Roles } from '../comun/auth/roles.decorator.js';
 import { EstadoObra, ObraResumen } from './modelos/obra-resumen.modelo.js';
 import { ObrasCliente } from './obras.cliente.js';
 
@@ -8,6 +9,7 @@ export class ObrasResolver {
   constructor(private readonly cliente: ObrasCliente) {}
 
   /** Lista de obras que ve el usuario; Obras filtra por visibilidad (fase 1: siempre vacía; la completa la 006). */
+  @Roles('admin', 'gerente', 'residente')
   @Query(() => [ObraResumen])
   obras(
     @Context() contexto: ContextoGraphql,
