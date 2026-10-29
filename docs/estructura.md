@@ -30,6 +30,7 @@ test/
   app.e2e-spec.ts        salud, token y reenvío de token y X-Request-Id
   obras.e2e-spec.ts      consulta obras: lista, filtros y Obras caído
   seguridad.e2e-spec.ts  encabezados, profundidad, límite de peticiones y Keycloak caído
+  roles.e2e-spec.ts      @Roles: NO_AUTENTICADO, SIN_PERMISO, regla del azp (demo1)
   soporte/               tokens-prueba.ts (claves RSA locales en lugar del JWKS de Keycloak)
 ```
 
