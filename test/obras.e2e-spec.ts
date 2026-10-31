@@ -83,7 +83,10 @@ describe('Consulta obras (e2e)', () => {
 
   it('401: zona null (u omitida por Obras) llega como null', async () => {
     const { zona: _zona, ...sinZona } = OBRA;
-    respuestaObras = [{ ...OBRA, zona: null }, { ...sinZona, id: 'otra' }];
+    respuestaObras = [
+      { ...OBRA, zona: null },
+      { ...sinZona, id: 'otra' },
+    ];
     const respuesta = await consultar('{ obras { id zona } }');
     expect(respuesta.body).toEqual({
       data: {

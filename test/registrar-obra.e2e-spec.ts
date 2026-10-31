@@ -226,9 +226,7 @@ describe('Registrar obra (e2e)', () => {
         estado: 201,
         cuerpo: { ...OBRA_REST, zona: null },
       });
-      const respuesta = await enviar(MUTACION, { entrada: sinZona }, [
-        'admin',
-      ]);
+      const respuesta = await enviar(MUTACION, { entrada: sinZona }, ['admin']);
       expect(respuesta.body.data.registrarObra.zona).toBeNull();
       expect(JSON.parse(pedidosObras[0].cuerpo)).not.toHaveProperty('zona');
     });
