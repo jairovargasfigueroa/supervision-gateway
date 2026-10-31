@@ -220,6 +220,24 @@ export class IaCliente {
     ).load(obraId);
   }
 
+  /**
+   * `PUT /consumos-atipicos/{id}/revision` (403), sin reintento. Los errores llegan con su codigo:
+   * 404 CONSUMO_ATIPICO_NO_ENCONTRADO, 409 REVISION_YA_REGISTRADA, 422 COMENTARIO_INVALIDO (con `errores[]`), 400 y 403.
+   */
+  revisarConsumoAtipico(
+    id: string,
+    revision: { estado: EstadoRevision; comentario?: string | null },
+    contexto: ContextoGraphql,
+  ): Promise<ConsumoAtipico> {
+    return this.cliente.enviar<ConsumoAtipico>(
+      'ia',
+      'PUT',
+      `/consumos-atipicos/${encodeURIComponent(id)}/revision`,
+      revision,
+      contexto,
+    );
+  }
+
   /** `GET /modelos/riesgo-retraso` (402); sin modelo cargado, 503 MODELO_NO_DISPONIBLE. */
   modeloRiesgo(contexto: ContextoGraphql): Promise<ModeloRiesgoRest> {
     return this.cliente.consultar<ModeloRiesgoRest>(

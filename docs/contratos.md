@@ -171,6 +171,7 @@ type Mutation {
   crearPlanilla(obraId: ID!, periodo: String!): Planilla!                    # 007 · residente asignado
   guardarPlanilla(id: ID!, entrada: GuardarPlanillaEntrada!): Planilla!      # 007 · residente asignado
   presentarPlanilla(id: ID!, version: Int!): Planilla!                       # 007 · residente asignado
+  revisarConsumoAtipico(id: ID!, estado: EstadoRevision!, comentario: String): ConsumoAtipico!   # 403 · admin, residente (asignado: lo valida IA)
 }
 ```
 
@@ -207,6 +208,7 @@ type Mutation {
 
 - `Obra.consumosAtipicos(estado)`: `GET /consumos-atipicos?obraId=&estado=` (IA; sin `estado`, todas las revisiones), de la más reciente a la más antigua. `material` sale del catálogo de Materiales (pedido una sola vez por petición; un material que no está en el catálogo vuelve `null`) y `revisadoPor` de Keycloak; si uno falla, solo ese campo vuelve `null`.
 - `FilaTablero.consumosAtipicosPendientes`: DataLoader de la petición que junta los `obraId` del tablero en llamadas a `GET /consumos-atipicos/resumen?obraIds=` de hasta 100 obras cada una, en paralelo (IA rechaza más con `400 DEMASIADAS_OBRAS`); una obra que IA no devuelve cuenta 0. `IndicadoresTablero.consumosAtipicosPendientes` suma ese mismo lote (sin obras en ejecución, 0 sin llamar a IA).
+- `revisarConsumoAtipico` → `PUT /consumos-atipicos/{id}/revision` `{ estado, comentario }` (`comentario` solo si viene). Solo `admin` y `residente` (el gateway responde `SIN_PERMISO` a otros roles sin llamar a IA; que sea el residente asignado lo valida IA). Sin reintento. Los errores de IA llegan en `extensions.codigo` con `data: null`: `CONSUMO_ATIPICO_NO_ENCONTRADO` (404), `REVISION_YA_REGISTRADA` (409), `COMENTARIO_INVALIDO` (422, con `extensions.errores[]`, `campo` = `comentario`) y `DATOS_INVALIDOS` (400, estado `PENDIENTE` o desconocido).
 - Si IA no responde: esos campos vuelven `null` con `SERVICIO_NO_DISPONIBLE` (`extensions.servicio = "ia"`); los errores de IA llegan con su `codigo` (`404 OBRA_NO_ENCONTRADA`).
 
 Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, reportes por voz) en sus especificaciones.
@@ -219,6 +221,6 @@ Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, repo
 | Materiales | `GET /materiales`, `POST /materiales`, `PUT /materiales/{id}`, `GET /obras/{id}/stock`, `PUT /obras/{id}/stock/{materialId}/minimo`, `GET /obras/{id}/consumos`, `GET /stock/resumen` |
 | Finanzas | `GET /contratos`, `GET /cobros`, `GET /cobros/{id}`, `GET /cobros/resumen` |
 | Keycloak (cliente `gateway`) | `GET /admin/realms/supervision/roles/{rol}/users`, `GET /admin/realms/supervision/users/{id}` |
-| IA (capas 4 y 5) | 402: `GET /predicciones?obraIds=` (hasta 100 por llamada), `GET /obras/{id}/prediccion?historial=`, `GET /modelos/riesgo-retraso`; 403: `GET /consumos-atipicos?obraId=&estado=`, `GET /consumos-atipicos/resumen?obraIds=` (hasta 100 por llamada) |
+| IA (capas 4 y 5) | 402: `GET /predicciones?obraIds=` (hasta 100 por llamada), `GET /obras/{id}/prediccion?historial=`, `GET /modelos/riesgo-retraso`; 403: `GET /consumos-atipicos?obraId=&estado=`, `GET /consumos-atipicos/resumen?obraIds=` (hasta 100 por llamada), `PUT /consumos-atipicos/{id}/revision` |
 
 URLs base por variables de entorno: `OBRAS_URL`, `MATERIALES_URL`, `FINANZAS_URL`, `IA_URL` (402; por defecto `http://localhost:8085`), `KEYCLOAK_URL`, `KEYCLOAK_GATEWAY_CLIENT_ID`, `KEYCLOAK_GATEWAY_CLIENT_SECRET`.

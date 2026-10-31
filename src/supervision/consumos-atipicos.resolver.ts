@@ -1,5 +1,14 @@
-import { Args, Context, Parent, ResolveField, Resolver } from '@nestjs/graphql';
+import {
+  Args,
+  Context,
+  ID,
+  Mutation,
+  Parent,
+  ResolveField,
+  Resolver,
+} from '@nestjs/graphql';
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
+import { Roles } from '../comun/auth/roles.decorator.js';
 import { KeycloakAdminCliente } from '../comun/keycloak/keycloak-admin.cliente.js';
 import { Usuario } from '../comun/keycloak/usuario.modelo.js';
 import { MaterialesCliente } from '../materiales/materiales.cliente.js';
@@ -31,13 +40,37 @@ export class ObraConsumosAtipicosResolver {
   }
 }
 
-/** 403: nombre del material (catálogo de Materiales, una vez por petición) y revisor (Keycloak, caché de 5 min). */
+/**
+ * 403: revisión de un consumo atípico, nombre del material (catálogo de Materiales, una vez por petición) y revisor
+ * (Keycloak, caché de 5 min).
+ */
 @Resolver(() => ConsumoAtipico)
 export class ConsumoAtipicoResolver {
   constructor(
+    private readonly iaCliente: IaCliente,
     private readonly materialesCliente: MaterialesCliente,
     private readonly keycloak: KeycloakAdminCliente,
   ) {}
+
+  /**
+   * Marca el consumo como NORMAL o CONFIRMADO. Solo admin y residente (a otros roles el gateway responde SIN_PERMISO
+   * sin llamar a IA; que sea el residente asignado lo valida IA). Sin reintento; los errores llegan con el codigo de IA.
+   */
+  @Roles('admin', 'residente')
+  @Mutation(() => ConsumoAtipico)
+  revisarConsumoAtipico(
+    @Context() contexto: ContextoGraphql,
+    @Args('id', { type: () => ID }) id: string,
+    @Args('estado', { type: () => EstadoRevision }) estado: EstadoRevision,
+    @Args('comentario', { type: () => String, nullable: true })
+    comentario?: string | null,
+  ): Promise<ConsumoAtipico> {
+    return this.iaCliente.revisarConsumoAtipico(
+      id,
+      { estado, comentario },
+      contexto,
+    );
+  }
 
   @ResolveField(() => Material, { nullable: true })
   async material(

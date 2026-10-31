@@ -404,4 +404,140 @@ describe('Consumos atípicos (e2e)', () => {
       expect(ia.pedidos).toHaveLength(2);
     }, 15000);
   });
+
+  describe('revisarConsumoAtipico', () => {
+    const MUTACION = `mutation ($id: ID!, $estado: EstadoRevision!, $comentario: String) {
+      revisarConsumoAtipico(id: $id, estado: $estado, comentario: $comentario) {
+        id estadoRevision revisadoPor { id nombre } revisadoEn comentario material { nombre }
+      }
+    }`;
+    const REVISADO = consumo('mov-1', 'm1', CONFIRMADO);
+    const VARIABLES = {
+      id: 'mov-1',
+      estado: 'CONFIRMADO',
+      comentario: CONFIRMADO.comentario,
+    };
+
+    beforeEach(() => {
+      ia.responder = porRuta({
+        '/consumos-atipicos/mov-1/revision': { cuerpo: REVISADO },
+      });
+    });
+
+    it.each([['residente'], ['admin']])(
+      '%s revisa: PUT /consumos-atipicos/{id}/revision con estado y comentario; revisor y material resueltos',
+      async (rol) => {
+        const respuesta = await consultar(MUTACION, VARIABLES, [rol]);
+        expect(respuesta.body.errors).toBeUndefined();
+        expect(respuesta.body.data.revisarConsumoAtipico).toEqual({
+          id: 'mov-1',
+          estadoRevision: 'CONFIRMADO',
+          revisadoPor: { id: REVISOR, nombre: 'Residente Pérez' },
+          revisadoEn: CONFIRMADO.revisadoEn,
+          comentario: CONFIRMADO.comentario,
+          material: { nombre: 'Cemento IP-30' },
+        });
+        expect(ia.pedidos).toHaveLength(1);
+        expect(ia.pedidos[0]).toMatchObject({
+          metodo: 'PUT',
+          ruta: '/consumos-atipicos/mov-1/revision',
+        });
+        expect(JSON.parse(ia.pedidos[0].cuerpo)).toEqual({
+          estado: 'CONFIRMADO',
+          comentario: CONFIRMADO.comentario,
+        });
+        expect(ia.pedidos[0].encabezados.authorization).toMatch(/^Bearer /);
+        expect(ia.pedidos[0].encabezados['x-request-id']).toBe('req-403');
+      },
+    );
+
+    it('«Es normal» sin comentario no lo manda', async () => {
+      await consultar(MUTACION, { id: 'mov-1', estado: 'NORMAL' });
+      expect(JSON.parse(ia.pedidos[0].cuerpo)).toEqual({ estado: 'NORMAL' });
+    });
+
+    it.each([
+      [404, 'CONSUMO_ATIPICO_NO_ENCONTRADO'],
+      [409, 'REVISION_YA_REGISTRADA'],
+      [400, 'DATOS_INVALIDOS'],
+    ])(
+      '%i %s de IA llega en extensions.codigo con data null',
+      async (estado, codigo) => {
+        ia.responder = () => ({
+          estado,
+          cuerpo: { title: 'Error', status: estado, codigo },
+        });
+        const respuesta = await consultar(MUTACION, VARIABLES);
+        expect(respuesta.body.data).toBeNull();
+        expect(respuesta.body.errors).toHaveLength(1);
+        expect(respuesta.body.errors[0].path).toEqual([
+          'revisarConsumoAtipico',
+        ]);
+        expect(respuesta.body.errors[0].extensions).toMatchObject({
+          codigo,
+          servicio: 'ia',
+          estado,
+        });
+      },
+    );
+
+    it('422 COMENTARIO_INVALIDO llega con los errores por campo', async () => {
+      const errores = [
+        { campo: 'comentario', mensaje: 'Debe tener entre 5 y 300 caracteres' },
+      ];
+      ia.responder = () => ({
+        estado: 422,
+        cuerpo: {
+          title: 'Comentario inválido',
+          status: 422,
+          codigo: 'COMENTARIO_INVALIDO',
+          errores,
+        },
+      });
+      const respuesta = await consultar(MUTACION, {
+        ...VARIABLES,
+        comentario: 'no',
+      });
+      expect(respuesta.body.errors[0].extensions).toMatchObject({
+        codigo: 'COMENTARIO_INVALIDO',
+        servicio: 'ia',
+        estado: 422,
+        errores,
+      });
+    });
+
+    it('un 500 de IA no se reintenta (es una mutación)', async () => {
+      ia.responder = () => ({
+        estado: 500,
+        cuerpo: { title: 'Error', codigo: 'ERROR_INTERNO' },
+      });
+      const respuesta = await consultar(MUTACION, VARIABLES);
+      expect(respuesta.body.errors[0].extensions.codigo).toBe('ERROR_INTERNO');
+      expect(ia.pedidos).toHaveLength(1);
+    });
+
+    it('IA tarda más de 3 s: SERVICIO_NO_DISPONIBLE sin reintento', async () => {
+      ia.responder = () => ({ cuerpo: REVISADO, esperaMs: 3500 });
+      const respuesta = await consultar(MUTACION, VARIABLES);
+      expect(respuesta.body.data).toBeNull();
+      expect(respuesta.body.errors[0].extensions).toMatchObject({
+        codigo: 'SERVICIO_NO_DISPONIBLE',
+        servicio: 'ia',
+      });
+      expect(ia.pedidos).toHaveLength(1);
+    }, 15000);
+
+    it.each([['gerente'], ['maestro']])(
+      '%s recibe SIN_PERMISO sin llamar a IA',
+      async (rol) => {
+        const respuesta = await consultar(MUTACION, VARIABLES, [rol]);
+        expect(respuesta.body.data).toBeNull();
+        expect(respuesta.body.errors[0].extensions).toMatchObject({
+          codigo: 'SIN_PERMISO',
+          estado: 403,
+        });
+        expect(ia.pedidos).toHaveLength(0);
+      },
+    );
+  });
 });

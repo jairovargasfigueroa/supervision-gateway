@@ -8,7 +8,10 @@ const contexto = {
 } as unknown as ContextoGraphql;
 
 function crear() {
-  const servicio = { consultar: vi.fn().mockResolvedValue([]) };
+  const servicio = {
+    consultar: vi.fn().mockResolvedValue([]),
+    enviar: vi.fn().mockResolvedValue({ id: 'mov-1' }),
+  };
   return {
     servicio,
     ia: new IaCliente(servicio as unknown as ClienteServicio),
@@ -63,6 +66,23 @@ describe('IaCliente', () => {
       '/consumos-atipicos/resumen?obraIds=o1,a%2Fb',
       contexto,
     );
+  });
+
+  it('revisarConsumoAtipico envía PUT /consumos-atipicos/{id}/revision (sin reintento: enviar)', async () => {
+    const { servicio, ia } = crear();
+    const revision = {
+      estado: EstadoRevision.CONFIRMADO,
+      comentario: 'Se usó en otra obra',
+    };
+    await ia.revisarConsumoAtipico('a/b', revision, contexto);
+    expect(servicio.enviar).toHaveBeenCalledWith(
+      'ia',
+      'PUT',
+      '/consumos-atipicos/a%2Fb/revision',
+      revision,
+      contexto,
+    );
+    expect(servicio.consultar).not.toHaveBeenCalled();
   });
 
   it('modeloRiesgo pide GET /modelos/riesgo-retraso', async () => {
