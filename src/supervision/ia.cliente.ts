@@ -2,6 +2,10 @@ import { Injectable } from '@nestjs/common';
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
 import { cargador } from '../comun/dataloaders/dataloaders.js';
 import { ClienteServicio } from '../comun/http/cliente-servicio.js';
+import type {
+  ConsumoAtipico,
+  EstadoRevision,
+} from './modelos/consumo-atipico.modelo.js';
 import type { RiesgoRetraso } from './modelos/riesgo.modelo.js';
 import { riesgoDesdePrediccion, sinPrediccion } from './riesgo.js';
 
@@ -163,6 +167,23 @@ export class IaCliente {
     return this.cliente.consultar<PrediccionObraRest>(
       'ia',
       `/obras/${encodeURIComponent(obraId)}/prediccion?historial=${historial}`,
+      contexto,
+    );
+  }
+
+  /**
+   * `GET /consumos-atipicos?obraId=&estado=` (403): de la más reciente a la más antigua (máximo 200). Si el usuario no
+   * ve la obra, 404 OBRA_NO_ENCONTRADA.
+   */
+  consumosAtipicos(
+    filtros: { obraId: string; estado?: EstadoRevision | null },
+    contexto: ContextoGraphql,
+  ): Promise<ConsumoAtipico[]> {
+    const parametros = new URLSearchParams({ obraId: filtros.obraId });
+    if (filtros.estado) parametros.set('estado', filtros.estado);
+    return this.cliente.consultar<ConsumoAtipico[]>(
+      'ia',
+      `/consumos-atipicos?${parametros.toString()}`,
       contexto,
     );
   }

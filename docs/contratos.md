@@ -38,6 +38,7 @@ type Obra {
   cobros: [Cobro!]                  # Finanzas (pide tamano=100); null sin error si el rol no es admin ni gerente
   riesgoRetraso: RiesgoRetraso      # 402 · IA; null con SERVICIO_NO_DISPONIBLE si no responde
   historialRiesgo(limite: Int = 30): [PuntoRiesgo!]   # 402 · IA (misma llamada que riesgoRetraso)
+  consumosAtipicos(estado: EstadoRevision): [ConsumoAtipico!]   # 403 · IA; null con SERVICIO_NO_DISPONIBLE si no responde
 }
 type ContratoObra { contratoId: ID monto: Float! plazoDias: Int! anticipoPct: Float! retencionPct: Float! }
 type Partida {
@@ -117,6 +118,18 @@ type ModeloRiesgo {
   metricas: MetricasModeloRiesgo! umbralMedio: Float! umbralAlto: Float! variables: [VariableModelo!]!
 }
 
+# 403 · consumos atípicos (servicio de IA)
+enum EstadoRevision { PENDIENTE NORMAL CONFIRMADO }
+type ConsumoAtipico {
+  id: ID! movimientoId: ID! obraId: ID!
+  materialId: ID! material: Material          # Materiales (catálogo, una vez por petición)
+  partidaId: ID! cantidad: Float! periodo: String! registradoEn: String!
+  puntaje: Float! motivos: [String!]!
+  estadoRevision: EstadoRevision!
+  revisadoPor: Usuario                        # Keycloak (caché de 5 min, 006)
+  revisadoEn: String comentario: String versionModelo: String!
+}
+
 input AsignacionesEntrada { residenteId: ID! maestroId: ID! almaceneroId: ID! clienteId: ID! }
 input ContratoEntrada { monto: Float! plazoDias: Int! anticipoPct: Float! retencionPct: Float! firmadoEn: String! }
 input InsumoEntrada { materialId: ID! cantidadPorUnidad: Float! }
@@ -188,6 +201,11 @@ type Mutation {
 - `modeloRiesgo`: `GET /modelos/riesgo-retraso`; `umbrales.medio` y `umbrales.alto` se exponen como `umbralMedio` y `umbralAlto`; `datos` (`SINTETICOS` o `REALES`) va tal cual. Sin modelo cargado: `null` con `MODELO_NO_DISPONIBLE`.
 - Si IA no responde: esos campos vuelven `null` con `extensions.codigo = "SERVICIO_NO_DISPONIBLE"` y `extensions.servicio = "ia"`; el resto llega.
 
+### Consumos atípicos (403)
+
+- `Obra.consumosAtipicos(estado)`: `GET /consumos-atipicos?obraId=&estado=` (IA; sin `estado`, todas las revisiones), de la más reciente a la más antigua. `material` sale del catálogo de Materiales (pedido una sola vez por petición; un material que no está en el catálogo vuelve `null`) y `revisadoPor` de Keycloak; si uno falla, solo ese campo vuelve `null`.
+- Si IA no responde: el campo vuelve `null` con `SERVICIO_NO_DISPONIBLE` (`extensions.servicio = "ia"`); los errores de IA llegan con su `codigo` (`404 OBRA_NO_ENCONTRADA`).
+
 Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, reportes por voz) en sus especificaciones.
 
 ## Consume (REST)
@@ -198,6 +216,6 @@ Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, repo
 | Materiales | `GET /materiales`, `POST /materiales`, `PUT /materiales/{id}`, `GET /obras/{id}/stock`, `PUT /obras/{id}/stock/{materialId}/minimo`, `GET /obras/{id}/consumos`, `GET /stock/resumen` |
 | Finanzas | `GET /contratos`, `GET /cobros`, `GET /cobros/{id}`, `GET /cobros/resumen` |
 | Keycloak (cliente `gateway`) | `GET /admin/realms/supervision/roles/{rol}/users`, `GET /admin/realms/supervision/users/{id}` |
-| IA (capas 4 y 5) | 402: `GET /predicciones?obraIds=` (hasta 100 por llamada), `GET /obras/{id}/prediccion?historial=`, `GET /modelos/riesgo-retraso` |
+| IA (capas 4 y 5) | 402: `GET /predicciones?obraIds=` (hasta 100 por llamada), `GET /obras/{id}/prediccion?historial=`, `GET /modelos/riesgo-retraso`; 403: `GET /consumos-atipicos?obraId=&estado=` |
 
 URLs base por variables de entorno: `OBRAS_URL`, `MATERIALES_URL`, `FINANZAS_URL`, `IA_URL` (402; por defecto `http://localhost:8085`), `KEYCLOAK_URL`, `KEYCLOAK_GATEWAY_CLIENT_ID`, `KEYCLOAK_GATEWAY_CLIENT_SECRET`.

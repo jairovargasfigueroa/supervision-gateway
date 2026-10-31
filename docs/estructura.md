@@ -41,8 +41,8 @@ src/
   finanzas/              006: finanzas.cliente.ts (GET /contratos?obraId=, GET /cobros?obraId=&tamano=100, con DataLoader; 009: GET /cobros/resumen; 008: GET /cobros/{id} con DataLoader), finanzas.resolver.ts (Obra.finanzas y Obra.cobros: null sin error si el rol no es admin ni gerente)
     modelos/             finanzas-obra.modelo.ts (FinanzasObra), cobro.modelo.ts (Cobro, enum EstadoCobro)
     finanzas.module.ts
-  supervision/           capas 4 y 5: ia.cliente.ts (402: GET /predicciones en lotes de 100 con DataLoader, GET /obras/{id}/prediccion, GET /modelos/riesgo-retraso), riesgo.ts (RiesgoRetraso desde IA; SIN_DATOS si falta), riesgo-tablero.resolver.ts (FilaTablero.riesgoRetraso, IndicadoresTablero.obrasRiesgoAlto), riesgo.resolver.ts (Obra.riesgoRetraso e historialRiesgo en una sola llamada; modeloRiesgo), supervision.module.ts
-    modelos/             riesgo.modelo.ts (NivelRiesgo, FactorRiesgo, RiesgoRetraso, PuntoRiesgo, ModeloRiesgo, ...)
+  supervision/           capas 4 y 5: ia.cliente.ts (402: GET /predicciones en lotes de 100 con DataLoader, GET /obras/{id}/prediccion, GET /modelos/riesgo-retraso), riesgo.ts (RiesgoRetraso desde IA; SIN_DATOS si falta), riesgo-tablero.resolver.ts (FilaTablero.riesgoRetraso, IndicadoresTablero.obrasRiesgoAlto), riesgo.resolver.ts (Obra.riesgoRetraso e historialRiesgo en una sola llamada; modeloRiesgo), consumos-atipicos.resolver.ts (403: Obra.consumosAtipicos; ConsumoAtipico.material y revisadoPor), supervision.module.ts
+    modelos/             riesgo.modelo.ts (NivelRiesgo, FactorRiesgo, RiesgoRetraso, PuntoRiesgo, ModeloRiesgo, ...), consumo-atipico.modelo.ts (ConsumoAtipico, EstadoRevision)
 test/
   obras.e2e-spec.ts      GraphQL contra servicios simulados (servidores HTTP de prueba)
   app.e2e-spec.ts        salud, token y reenvío de token y X-Request-Id
@@ -54,6 +54,7 @@ test/
   materiales.e2e-spec.ts materiales, stockObra y mutaciones de la 003 contra un Materiales simulado: filtros y paginación, 409 CODIGO_MATERIAL_REPETIDO → extensions.codigo, 404/422, sin reintento en mutaciones, Materiales caído o lento, SIN_PERMISO
   planillas.e2e-spec.ts  007: Obra.planillas, planilla(id) y mutaciones contra un Obras simulado; 008: Planilla.cobro por rol y con Finanzas caído
   riesgo-retraso.e2e-spec.ts  402: tablero, obra y modelo contra Obras e IA simulados (lotes de 100, SIN_DATOS, IA caído o lento)
+  consumos-atipicos.e2e-spec.ts  403: Obra.consumosAtipicos, tablero y revisarConsumoAtipico contra Obras, Materiales, Keycloak e IA simulados
   tablero.e2e-spec.ts    009: tablero contra Obras, Materiales y Finanzas simulados (lote a Materiales en una sola llamada, cada servicio caído o lento)
   consultar-obra.e2e-spec.ts  006: obras y obra(id) completos contra Obras, Materiales, Finanzas y Keycloak simulados (DataLoader, respuesta parcial, servicio lento)
   soporte/               tokens-prueba.ts (claves RSA locales en lugar del JWKS de Keycloak), servicio-simulado.ts (servidor REST de prueba con demora configurable)

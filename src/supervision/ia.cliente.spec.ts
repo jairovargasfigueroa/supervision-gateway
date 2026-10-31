@@ -1,6 +1,7 @@
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
 import type { ClienteServicio } from '../comun/http/cliente-servicio.js';
 import { IaCliente } from './ia.cliente.js';
+import { EstadoRevision } from './modelos/consumo-atipico.modelo.js';
 
 const contexto = {
   req: { requestId: 'req-1', token: 't' },
@@ -31,6 +32,25 @@ describe('IaCliente', () => {
     expect(servicio.consultar).toHaveBeenCalledWith(
       'ia',
       '/obras/a%2Fb/prediccion?historial=30',
+      contexto,
+    );
+  });
+
+  it('consumosAtipicos pide GET /consumos-atipicos con la obra y, si viene, el estado', async () => {
+    const { servicio, ia } = crear();
+    await ia.consumosAtipicos({ obraId: 'a/b' }, contexto);
+    expect(servicio.consultar).toHaveBeenLastCalledWith(
+      'ia',
+      '/consumos-atipicos?obraId=a%2Fb',
+      contexto,
+    );
+    await ia.consumosAtipicos(
+      { obraId: 'o1', estado: EstadoRevision.NORMAL },
+      contexto,
+    );
+    expect(servicio.consultar).toHaveBeenLastCalledWith(
+      'ia',
+      '/consumos-atipicos?obraId=o1&estado=NORMAL',
       contexto,
     );
   });
