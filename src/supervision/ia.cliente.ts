@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
+import { cargador } from '../comun/dataloaders/dataloaders.js';
 import { ClienteServicio } from '../comun/http/cliente-servicio.js';
+import type { RiesgoRetraso } from './modelos/riesgo.modelo.js';
+import { riesgoDesdePrediccion, sinPrediccion } from './riesgo.js';
 
 /** Máximo de obras por llamada a `GET /predicciones` (más: `400 DEMASIADAS_OBRAS`, contrato de IA). */
 export const OBRAS_POR_LOTE_IA = 100;
@@ -59,6 +62,34 @@ export class IaCliente {
       `/predicciones?obraIds=${obraIds.map(encodeURIComponent).join(',')}`,
       contexto,
     );
+  }
+
+  /**
+   * Riesgo de una obra con el DataLoader de la petición (402): todas las obras pedidas en la misma petición (filas e
+   * indicador del tablero) se juntan en llamadas a `GET /predicciones` de hasta 100 obras, en paralelo. Una obra que
+   * IA no devuelve queda `SIN_DATOS`.
+   */
+  riesgoEnLote(
+    obraId: string,
+    contexto: ContextoGraphql,
+  ): Promise<RiesgoRetraso> {
+    return cargador<string, RiesgoRetraso>(
+      contexto,
+      'prediccionesIa',
+      async (obraIds) => {
+        const predicciones = await this.predicciones(obraIds, contexto);
+        const porObra = new Map(
+          predicciones.map((prediccion) => [prediccion.obraId, prediccion]),
+        );
+        return obraIds.map((id) => {
+          const prediccion = porObra.get(id);
+          return prediccion
+            ? riesgoDesdePrediccion(prediccion)
+            : sinPrediccion();
+        });
+      },
+      { maxBatchSize: OBRAS_POR_LOTE_IA },
+    ).load(obraId);
   }
 
   /** `GET /obras/{obraId}/prediccion?historial=N` (402); si no la ve, 404 OBRA_NO_ENCONTRADA. */

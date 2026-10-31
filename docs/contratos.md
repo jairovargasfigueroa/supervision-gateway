@@ -90,12 +90,29 @@ type Tablero { indicadores: IndicadoresTablero obras: [FilaTablero!] }
 type IndicadoresTablero {
   obrasEnEjecucion: Int  obrasEnRiesgo: Int  materialesBajos: Int
   cobrosVencidos: ResumenMonto       # null sin error si el rol no es admin ni gerente
+  obrasRiesgoAlto: Int               # 402 · IA (mismo lote que las filas); null si no responde
 }
 type ResumenMonto { cantidad: Int! monto: Float! }
 type FilaTablero {
   obraId: ID! nombre: String! avancePct: Float! plazoPct: Float! diferencia: Float! enRiesgo: Boolean!
   materialesBajos: Int               # Materiales; null si no responde
   ultimaPlanilla: PlanillaCorta
+  riesgoRetraso: RiesgoRetraso       # 402 · IA, en lotes de hasta 100 obras; null si no responde
+}
+
+# 402 · riesgo de retraso (servicio de IA)
+enum NivelRiesgo { BAJO MEDIO ALTO SIN_DATOS }
+type FactorRiesgo { variable: String! descripcion: String! peso: Float! }
+type RiesgoRetraso {
+  probabilidad: Float  nivel: NivelRiesgo!  factores: [FactorRiesgo!]!
+  versionModelo: String  calculadaEn: String
+}
+type PuntoRiesgo { probabilidad: Float! calculadaEn: String! }
+type MetricasModeloRiesgo { aucRoc: Float! aucRocRegla: Float! recallMedio: Float! precisionAlto: Float! brier: Float! }
+type VariableModelo { nombre: String! descripcion: String! }
+type ModeloRiesgo {
+  versionModelo: String! entrenadoEn: String! datos: String! filasEntrenamiento: Int!   # datos: SINTETICOS o REALES, tal cual IA
+  metricas: MetricasModeloRiesgo! umbralMedio: Float! umbralAlto: Float! variables: [VariableModelo!]!
 }
 
 input AsignacionesEntrada { residenteId: ID! maestroId: ID! almaceneroId: ID! clienteId: ID! }
@@ -159,6 +176,12 @@ type Mutation {
 - `obras`, `indicadores.obrasEnEjecucion` e `indicadores.obrasEnRiesgo`: `GET /obras?estado=EN_EJECUCION` (Obras), pedido una sola vez por petición. Las filas salen en el orden de Obras (por nombre); el ERP ordena la tabla. `diferencia` = `plazoPct − avancePct`, calculada en centésimas.
 - `FilaTablero.materialesBajos` e `indicadores.materialesBajos` (suma de las filas): `GET /stock/resumen?obraIds=a,b,c` (Materiales), **una sola llamada** en lote con el DataLoader de la petición (Materiales acepta hasta 100 obras por llamada: con más, una llamada por cada 100); una obra que Materiales no devuelve cuenta 0. Sin obras en ejecución no se llama a Materiales. Si Obras falla, el indicador también vuelve `null` (no hay obras que sumar).
 - `indicadores.cobrosVencidos`: `vencidos` de `GET /cobros/resumen` (Finanzas); `null` sin error (y sin llamar a Finanzas) si el rol efectivo no es `admin` ni `gerente`.
+
+### Riesgo de retraso (402)
+
+- `FilaTablero.riesgoRetraso`: DataLoader de la petición que junta los `obraId` del tablero en llamadas a `GET /predicciones?obraIds=` (IA) de hasta 100 obras cada una, en paralelo (IA rechaza más con `400 DEMASIADAS_OBRAS`). Una obra que IA no devuelve queda `{ nivel: SIN_DATOS, probabilidad: null, factores: [], versionModelo: null, calculadaEn: null }`.
+- `IndicadoresTablero.obrasRiesgoAlto`: filas del tablero con nivel `ALTO`, con el mismo lote (sin obras en ejecución, 0 sin llamar a IA).
+- Si IA no responde: esos campos vuelven `null` con `extensions.codigo = "SERVICIO_NO_DISPONIBLE"` y `extensions.servicio = "ia"`; el resto llega.
 
 Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, reportes por voz) en sus especificaciones.
 
