@@ -38,6 +38,7 @@ type Obra {
   cobros: [Cobro!]                  # Finanzas (pide tamano=100); null sin error si el rol no es admin ni gerente
   riesgoRetraso: RiesgoRetraso      # 402 · IA; null con SERVICIO_NO_DISPONIBLE si no responde
   historialRiesgo(limite: Int = 30): [PuntoRiesgo!]   # 402 · IA (misma llamada que riesgoRetraso)
+  consumosAtipicos(estado: EstadoRevision): [ConsumoAtipico!]   # 403 · IA; null con SERVICIO_NO_DISPONIBLE si no responde
 }
 type ContratoObra { contratoId: ID monto: Float! plazoDias: Int! anticipoPct: Float! retencionPct: Float! }
 type Partida {
@@ -93,6 +94,7 @@ type IndicadoresTablero {
   obrasEnEjecucion: Int  obrasEnRiesgo: Int  materialesBajos: Int
   cobrosVencidos: ResumenMonto       # null sin error si el rol no es admin ni gerente
   obrasRiesgoAlto: Int               # 402 · IA (mismo lote que las filas); null si no responde
+  consumosAtipicosPendientes: Int    # 403 · IA (suma del mismo lote que las filas); null si no responde
 }
 type ResumenMonto { cantidad: Int! monto: Float! }
 type FilaTablero {
@@ -100,6 +102,7 @@ type FilaTablero {
   materialesBajos: Int               # Materiales; null si no responde
   ultimaPlanilla: PlanillaCorta
   riesgoRetraso: RiesgoRetraso       # 402 · IA, en lotes de hasta 100 obras; null si no responde
+  consumosAtipicosPendientes: Int    # 403 · IA, en lotes de hasta 100 obras; null si no responde
 }
 
 # 402 · riesgo de retraso (servicio de IA)
@@ -115,6 +118,18 @@ type VariableModelo { nombre: String! descripcion: String! }
 type ModeloRiesgo {
   versionModelo: String! entrenadoEn: String! datos: String! filasEntrenamiento: Int!   # datos: SINTETICOS o REALES, tal cual IA
   metricas: MetricasModeloRiesgo! umbralMedio: Float! umbralAlto: Float! variables: [VariableModelo!]!
+}
+
+# 403 · consumos atípicos (servicio de IA)
+enum EstadoRevision { PENDIENTE NORMAL CONFIRMADO }
+type ConsumoAtipico {
+  id: ID! movimientoId: ID! obraId: ID!
+  materialId: ID! material: Material          # Materiales (catálogo, una vez por petición)
+  partidaId: ID! cantidad: Float! periodo: String! registradoEn: String!
+  puntaje: Float! motivos: [String!]!
+  estadoRevision: EstadoRevision!
+  revisadoPor: Usuario                        # Keycloak (caché de 5 min, 006)
+  revisadoEn: String comentario: String versionModelo: String!
 }
 
 input AsignacionesEntrada { residenteId: ID! maestroId: ID! almaceneroId: ID! clienteId: ID! }
@@ -156,6 +171,7 @@ type Mutation {
   crearPlanilla(obraId: ID!, periodo: String!): Planilla!                    # 007 · residente asignado
   guardarPlanilla(id: ID!, entrada: GuardarPlanillaEntrada!): Planilla!      # 007 · residente asignado
   presentarPlanilla(id: ID!, version: Int!): Planilla!                       # 007 · residente asignado
+  revisarConsumoAtipico(id: ID!, estado: EstadoRevision!, comentario: String): ConsumoAtipico!   # 403 · admin, residente (asignado: lo valida IA)
 }
 ```
 
@@ -188,6 +204,13 @@ type Mutation {
 - `modeloRiesgo`: `GET /modelos/riesgo-retraso`; `umbrales.medio` y `umbrales.alto` se exponen como `umbralMedio` y `umbralAlto`; `datos` (`SINTETICOS` o `REALES`) va tal cual. Sin modelo cargado: `null` con `MODELO_NO_DISPONIBLE`.
 - Si IA no responde: esos campos vuelven `null` con `extensions.codigo = "SERVICIO_NO_DISPONIBLE"` y `extensions.servicio = "ia"`; el resto llega.
 
+### Consumos atípicos (403)
+
+- `Obra.consumosAtipicos(estado)`: `GET /consumos-atipicos?obraId=&estado=` (IA; sin `estado`, todas las revisiones), de la más reciente a la más antigua. `material` sale del catálogo de Materiales (pedido una sola vez por petición; un material que no está en el catálogo vuelve `null`) y `revisadoPor` de Keycloak; si uno falla, solo ese campo vuelve `null`.
+- `FilaTablero.consumosAtipicosPendientes`: DataLoader de la petición que junta los `obraId` del tablero en llamadas a `GET /consumos-atipicos/resumen?obraIds=` de hasta 100 obras cada una, en paralelo (IA rechaza más con `400 DEMASIADAS_OBRAS`); una obra que IA no devuelve cuenta 0. `IndicadoresTablero.consumosAtipicosPendientes` suma ese mismo lote (sin obras en ejecución, 0 sin llamar a IA).
+- `revisarConsumoAtipico` → `PUT /consumos-atipicos/{id}/revision` `{ estado, comentario }` (`comentario` solo si viene). Solo `admin` y `residente` (el gateway responde `SIN_PERMISO` a otros roles sin llamar a IA; que sea el residente asignado lo valida IA). Sin reintento. Los errores de IA llegan en `extensions.codigo` con `data: null`: `CONSUMO_ATIPICO_NO_ENCONTRADO` (404), `REVISION_YA_REGISTRADA` (409), `COMENTARIO_INVALIDO` (422, con `extensions.errores[]`, `campo` = `comentario`) y `DATOS_INVALIDOS` (400, estado `PENDIENTE` o desconocido).
+- Si IA no responde: esos campos vuelven `null` con `SERVICIO_NO_DISPONIBLE` (`extensions.servicio = "ia"`); los errores de IA llegan con su `codigo` (`404 OBRA_NO_ENCONTRADA`).
+
 Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, reportes por voz) en sus especificaciones.
 
 ## Consume (REST)
@@ -198,6 +221,6 @@ Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, repo
 | Materiales | `GET /materiales`, `POST /materiales`, `PUT /materiales/{id}`, `GET /obras/{id}/stock`, `PUT /obras/{id}/stock/{materialId}/minimo`, `GET /obras/{id}/consumos`, `GET /stock/resumen` |
 | Finanzas | `GET /contratos`, `GET /cobros`, `GET /cobros/{id}`, `GET /cobros/resumen` |
 | Keycloak (cliente `gateway`) | `GET /admin/realms/supervision/roles/{rol}/users`, `GET /admin/realms/supervision/users/{id}` |
-| IA (capas 4 y 5) | 402: `GET /predicciones?obraIds=` (hasta 100 por llamada), `GET /obras/{id}/prediccion?historial=`, `GET /modelos/riesgo-retraso` |
+| IA (capas 4 y 5) | 402: `GET /predicciones?obraIds=` (hasta 100 por llamada), `GET /obras/{id}/prediccion?historial=`, `GET /modelos/riesgo-retraso`; 403: `GET /consumos-atipicos?obraId=&estado=`, `GET /consumos-atipicos/resumen?obraIds=` (hasta 100 por llamada), `PUT /consumos-atipicos/{id}/revision` |
 
 URLs base por variables de entorno: `OBRAS_URL`, `MATERIALES_URL`, `FINANZAS_URL`, `IA_URL` (402; por defecto `http://localhost:8085`), `KEYCLOAK_URL`, `KEYCLOAK_GATEWAY_CLIENT_ID`, `KEYCLOAK_GATEWAY_CLIENT_SECRET`.

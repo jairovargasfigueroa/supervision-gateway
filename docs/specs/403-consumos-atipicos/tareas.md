@@ -4,6 +4,6 @@ Requisitos y diseño: `docs/specs/403-consumos-atipicos/` de la carpeta que agru
 
 Marca cada tarea al terminarla (con sus pruebas y su commit).
 
-- [ ] Tipo `ConsumoAtipico` con `material` (Materiales) y `revisadoPor` (Keycloak); campo `Obra.consumosAtipicos(estado)`; pruebas
-- [ ] `FilaTablero.consumosAtipicosPendientes` e `IndicadoresTablero.consumosAtipicosPendientes` con lotes de hasta 100 `obraId` a `GET /consumos-atipicos/resumen`; respuesta parcial con IA caída; pruebas
-- [ ] Mutación `revisarConsumoAtipico` sin reintento y con mapeo de errores; pruebas
+- [x] Tipo `ConsumoAtipico` con `material` (Materiales) y `revisadoPor` (Keycloak); campo `Obra.consumosAtipicos(estado)`; pruebas
+- [x] `FilaTablero.consumosAtipicosPendientes` e `IndicadoresTablero.consumosAtipicosPendientes` con lotes de hasta 100 `obraId` a `GET /consumos-atipicos/resumen`; respuesta parcial con IA caída; pruebas
+- [x] Mutación `revisarConsumoAtipico` sin reintento y con mapeo de errores; pruebas

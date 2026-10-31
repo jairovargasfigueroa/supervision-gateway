@@ -2,6 +2,10 @@ import { Injectable } from '@nestjs/common';
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
 import { cargador } from '../comun/dataloaders/dataloaders.js';
 import { ClienteServicio } from '../comun/http/cliente-servicio.js';
+import type {
+  ConsumoAtipico,
+  EstadoRevision,
+} from './modelos/consumo-atipico.modelo.js';
 import type { RiesgoRetraso } from './modelos/riesgo.modelo.js';
 import { riesgoDesdePrediccion, sinPrediccion } from './riesgo.js';
 
@@ -163,6 +167,73 @@ export class IaCliente {
     return this.cliente.consultar<PrediccionObraRest>(
       'ia',
       `/obras/${encodeURIComponent(obraId)}/prediccion?historial=${historial}`,
+      contexto,
+    );
+  }
+
+  /**
+   * `GET /consumos-atipicos?obraId=&estado=` (403): de la más reciente a la más antigua (máximo 200). Si el usuario no
+   * ve la obra, 404 OBRA_NO_ENCONTRADA.
+   */
+  consumosAtipicos(
+    filtros: { obraId: string; estado?: EstadoRevision | null },
+    contexto: ContextoGraphql,
+  ): Promise<ConsumoAtipico[]> {
+    const parametros = new URLSearchParams({ obraId: filtros.obraId });
+    if (filtros.estado) parametros.set('estado', filtros.estado);
+    return this.cliente.consultar<ConsumoAtipico[]>(
+      'ia',
+      `/consumos-atipicos?${parametros.toString()}`,
+      contexto,
+    );
+  }
+
+  /** `GET /consumos-atipicos/resumen?obraIds=a,b,c` (403): hasta 100 obras; solo vienen las visibles. */
+  resumenAtipicos(
+    obraIds: readonly string[],
+    contexto: ContextoGraphql,
+  ): Promise<{ obraId: string; pendientes: number }[]> {
+    return this.cliente.consultar<{ obraId: string; pendientes: number }[]>(
+      'ia',
+      `/consumos-atipicos/resumen?obraIds=${obraIds.map(encodeURIComponent).join(',')}`,
+      contexto,
+    );
+  }
+
+  /**
+   * Consumos atípicos PENDIENTE de una obra con el DataLoader de la petición (403): todas las obras del tablero (filas e
+   * indicador) se juntan en llamadas a `GET /consumos-atipicos/resumen` de hasta 100 obras, en paralelo. Una obra que
+   * IA no devuelve cuenta 0.
+   */
+  pendientesEnLote(obraId: string, contexto: ContextoGraphql): Promise<number> {
+    return cargador<string, number>(
+      contexto,
+      'atipicosPendientesIa',
+      async (obraIds) => {
+        const resumen = await this.resumenAtipicos(obraIds, contexto);
+        const porObra = new Map(
+          resumen.map((fila) => [fila.obraId, fila.pendientes]),
+        );
+        return obraIds.map((id) => porObra.get(id) ?? 0);
+      },
+      { maxBatchSize: OBRAS_POR_LOTE_IA },
+    ).load(obraId);
+  }
+
+  /**
+   * `PUT /consumos-atipicos/{id}/revision` (403), sin reintento. Los errores llegan con su codigo:
+   * 404 CONSUMO_ATIPICO_NO_ENCONTRADO, 409 REVISION_YA_REGISTRADA, 422 COMENTARIO_INVALIDO (con `errores[]`), 400 y 403.
+   */
+  revisarConsumoAtipico(
+    id: string,
+    revision: { estado: EstadoRevision; comentario?: string | null },
+    contexto: ContextoGraphql,
+  ): Promise<ConsumoAtipico> {
+    return this.cliente.enviar<ConsumoAtipico>(
+      'ia',
+      'PUT',
+      `/consumos-atipicos/${encodeURIComponent(id)}/revision`,
+      revision,
       contexto,
     );
   }
