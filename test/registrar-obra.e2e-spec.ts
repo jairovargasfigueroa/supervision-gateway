@@ -18,6 +18,7 @@ const ASIGNACIONES = {
 const ENTRADA = {
   nombre: 'Edificio Las Palmas',
   ubicacion: 'Av. Banzer 4to anillo, Santa Cruz',
+  zona: 'SUR',
   fechaInicio: '2026-11-01',
   asignaciones: ASIGNACIONES,
   contrato: {
@@ -45,6 +46,7 @@ const OBRA_REST = {
   id: ID_OBRA,
   nombre: ENTRADA.nombre,
   ubicacion: ENTRADA.ubicacion,
+  zona: ENTRADA.zona,
   estado: 'SIN_CONTRATO',
   motivoRechazoContrato: null,
   fechaInicio: ENTRADA.fechaInicio,
@@ -77,7 +79,7 @@ const OBRA_REST = {
 
 const MUTACION = `mutation ($entrada: RegistrarObraEntrada!) {
   registrarObra(entrada: $entrada) {
-    id estado motivoRechazoContrato
+    id zona estado motivoRechazoContrato
     contrato { contratoId monto plazoDias anticipoPct retencionPct }
     partidas { codigo cantidadContratada precioUnitario meses insumos { materialId cantidadPorUnidad } }
   }
@@ -197,6 +199,7 @@ describe('Registrar obra (e2e)', () => {
       expect(respuesta.body.errors).toBeUndefined();
       expect(respuesta.body.data.registrarObra).toEqual({
         id: ID_OBRA,
+        zona: 'SUR',
         estado: 'SIN_CONTRATO',
         motivoRechazoContrato: null,
         contrato: OBRA_REST.contrato,
@@ -215,6 +218,42 @@ describe('Registrar obra (e2e)', () => {
       expect(JSON.parse(pedidosObras[0].cuerpo)).toEqual(ENTRADA);
       expect(pedidosObras[0].encabezados.authorization).toMatch(/^Bearer /);
       expect(pedidosObras[0].encabezados['x-request-id']).toBe('req-002');
+    });
+
+    it('401: sin zona no la manda a Obras y la obra vuelve con zona null', async () => {
+      const { zona: _zona, ...sinZona } = ENTRADA;
+      responderObras = () => ({
+        estado: 201,
+        cuerpo: { ...OBRA_REST, zona: null },
+      });
+      const respuesta = await enviar(MUTACION, { entrada: sinZona }, ['admin']);
+      expect(respuesta.body.data.registrarObra.zona).toBeNull();
+      expect(JSON.parse(pedidosObras[0].cuerpo)).not.toHaveProperty('zona');
+    });
+
+    it('401: una zona fuera de la lista se rechaza en el esquema sin llamar a Obras', async () => {
+      const respuesta = await enviar(
+        MUTACION,
+        { entrada: { ...ENTRADA, zona: 'NORESTE' } },
+        ['admin'],
+      );
+      expect(respuesta.body.errors).toHaveLength(1);
+      expect(pedidosObras).toHaveLength(0);
+    });
+
+    it('401: el 400 de Obras por la zona llega con los errores por campo', async () => {
+      const errores = [{ campo: 'zona', mensaje: 'Zona no válida' }];
+      responderObras = () => ({
+        estado: 400,
+        cuerpo: { title: 'Datos inválidos', status: 400, errores },
+      });
+      const respuesta = await enviar(MUTACION, { entrada: ENTRADA }, ['admin']);
+      expect(respuesta.body.errors[0].extensions).toMatchObject({
+        codigo: 'DATOS_INVALIDOS',
+        servicio: 'obras',
+        estado: 400,
+        errores,
+      });
     });
 
     it('acepta partidas sin insumos ni meses (la 003 todavía no da el catálogo)', async () => {
@@ -312,7 +351,7 @@ describe('Registrar obra (e2e)', () => {
   describe('obra(id)', () => {
     const CONSULTA = `query ($id: ID!) {
       obra(id: $id) {
-        id nombre estado motivoRechazoContrato
+        id nombre zona estado motivoRechazoContrato
         residente { id nombre correo } maestro { nombre } almacenero { nombre } cliente { nombre }
         contrato { contratoId monto }
         partidas { id codigo ejecutadaAcumulada avancePct }
@@ -336,6 +375,7 @@ describe('Registrar obra (e2e)', () => {
       });
       expect(respuesta.body.data.obra).toMatchObject({
         id: ID_OBRA,
+        zona: 'SUR',
         estado: 'SIN_CONTRATO',
         motivoRechazoContrato: 'El monto del contrato debe ser mayor a 0',
         residente: {

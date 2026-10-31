@@ -1,5 +1,5 @@
 import { Field, Float, ID, Int, ObjectType } from '@nestjs/graphql';
-import { EstadoObra } from './obra-resumen.modelo.js';
+import { EstadoObra, ZonaObra } from './obra-resumen.modelo.js';
 import { Partida } from './partida.modelo.js';
 
 @ObjectType()
@@ -35,6 +35,10 @@ export class Obra {
 
   @Field()
   ubicacion: string;
+
+  /** 401: tal cual la devuelve Obras (null = sin zona). */
+  @Field(() => ZonaObra, { nullable: true })
+  zona?: ZonaObra | null;
 
   @Field(() => EstadoObra)
   estado: EstadoObra;

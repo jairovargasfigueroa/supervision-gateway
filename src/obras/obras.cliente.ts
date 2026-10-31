@@ -2,13 +2,19 @@ import { Injectable } from '@nestjs/common';
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
 import { ClienteServicio } from '../comun/http/cliente-servicio.js';
 import type { FotosPagina } from './modelos/foto.modelo.js';
-import type { EstadoObra, ObraResumen } from './modelos/obra-resumen.modelo.js';
+import type {
+  EstadoObra,
+  ObraResumen,
+  ZonaObra,
+} from './modelos/obra-resumen.modelo.js';
 
 /** Detalle de la obra tal como lo devuelve Obras (`GET /obras/{id}` y `POST /obras`). */
 export interface ObraRest {
   id: string;
   nombre: string;
   ubicacion: string;
+  /** 401: null = sin zona. */
+  zona?: ZonaObra | null;
   estado: EstadoObra;
   motivoRechazoContrato: string | null;
   fechaInicio: string;
@@ -46,6 +52,7 @@ export interface ObraRest {
 export interface RegistrarObraRest {
   nombre: string;
   ubicacion: string;
+  zona?: ZonaObra | null;
   fechaInicio: string;
   asignaciones: {
     residenteId: string;

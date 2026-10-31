@@ -15,6 +15,16 @@ export enum EstadoObra {
 }
 registerEnumType(EstadoObra, { name: 'EstadoObra' });
 
+/** 401: zona de la obra (decisión del equipo). Opcional: null = sin zona. */
+export enum ZonaObra {
+  NORTE = 'NORTE',
+  SUR = 'SUR',
+  ESTE = 'ESTE',
+  OESTE = 'OESTE',
+  CENTRO = 'CENTRO',
+}
+registerEnumType(ZonaObra, { name: 'ZonaObra' });
+
 export enum EstadoPlanilla {
   BORRADOR = 'BORRADOR',
   PRESENTADA = 'PRESENTADA',
@@ -43,6 +53,10 @@ export class ObraResumen {
 
   @Field()
   ubicacion: string;
+
+  /** 401: tal cual la devuelve Obras (null = sin zona). */
+  @Field(() => ZonaObra, { nullable: true })
+  zona?: ZonaObra | null;
 
   @Field(() => EstadoObra)
   estado: EstadoObra;

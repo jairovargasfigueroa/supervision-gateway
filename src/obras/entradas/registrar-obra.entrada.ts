@@ -1,4 +1,5 @@
 import { Field, Float, ID, InputType, Int } from '@nestjs/graphql';
+import { ZonaObra } from '../modelos/obra-resumen.modelo.js';
 
 // Entradas de registrarObra (docs/contratos.md). Mismo JSON que el cuerpo de POST /obras: se reenvía tal cual.
 // Las reglas (presupuesto, códigos, porcentajes) las valida Obras; el gateway solo arma la petición.
@@ -76,6 +77,10 @@ export class RegistrarObraEntrada {
 
   @Field()
   ubicacion: string;
+
+  /** 401: opcional; Obras valida la lista (400 con `campo` = `zona`). */
+  @Field(() => ZonaObra, { nullable: true })
+  zona?: ZonaObra | null;
 
   @Field()
   fechaInicio: string;

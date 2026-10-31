@@ -11,6 +11,7 @@ const OBRA = {
   id: 'b0000000-0000-4000-8000-000000000001',
   nombre: 'Edificio Las Palmas',
   ubicacion: 'Av. Banzer 4to anillo, Santa Cruz',
+  zona: 'NORTE',
   estado: 'EN_EJECUCION',
   fechaInicio: '2026-11-01',
   avancePct: 32.5,
@@ -74,10 +75,27 @@ describe('Consulta obras (e2e)', () => {
   it('pasa los filtros a Obras y devuelve los campos del contrato', async () => {
     respuestaObras = [OBRA];
     const respuesta = await consultar(
-      '{ obras(estado: EN_EJECUCION, busqueda: "Palmas") { id nombre ubicacion estado fechaInicio avancePct plazoPct enRiesgo ultimaPlanilla { periodo estado } } }',
+      '{ obras(estado: EN_EJECUCION, busqueda: "Palmas") { id nombre ubicacion zona estado fechaInicio avancePct plazoPct enRiesgo ultimaPlanilla { periodo estado } } }',
     );
     expect(rutaPedida).toBe('/obras?estado=EN_EJECUCION&busqueda=Palmas');
     expect(respuesta.body).toEqual({ data: { obras: [OBRA] } });
+  });
+
+  it('401: zona null (u omitida por Obras) llega como null', async () => {
+    const { zona: _zona, ...sinZona } = OBRA;
+    respuestaObras = [
+      { ...OBRA, zona: null },
+      { ...sinZona, id: 'otra' },
+    ];
+    const respuesta = await consultar('{ obras { id zona } }');
+    expect(respuesta.body).toEqual({
+      data: {
+        obras: [
+          { id: OBRA.id, zona: null },
+          { id: 'otra', zona: null },
+        ],
+      },
+    });
   });
 
   it('si Obras no responde, devuelve SERVICIO_NO_DISPONIBLE con servicio obras', async () => {
