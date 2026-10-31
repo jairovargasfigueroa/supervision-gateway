@@ -15,12 +15,12 @@ const cargadoresPorPeticion = new WeakMap<
  * dentro de la petición se resuelven con una sola llamada al servicio (o una por cada `opciones.maxBatchSize` claves,
  * si el servicio limita cuántas recibe).
  */
-export function cargador<K, V>(
+export function cargador<K, V, C = K>(
   contexto: ContextoGraphql,
   nombre: string,
   cargar: DataLoader.BatchLoadFn<K, V>,
-  opciones?: DataLoader.Options<K, V>,
-): DataLoader<K, V> {
+  opciones?: DataLoader.Options<K, V, C>,
+): DataLoader<K, V, C> {
   let cargadores = cargadoresPorPeticion.get(contexto.req);
   if (!cargadores) {
     cargadores = new Map();
@@ -28,13 +28,13 @@ export function cargador<K, V>(
   }
   let encontrado = cargadores.get(nombre);
   if (!encontrado) {
-    encontrado = new DataLoader<K, V>(cargar, opciones) as DataLoader<
+    encontrado = new DataLoader<K, V, C>(cargar, opciones) as DataLoader<
       unknown,
       unknown
     >;
     cargadores.set(nombre, encontrado);
   }
-  return encontrado as DataLoader<K, V>;
+  return encontrado as DataLoader<K, V, C>;
 }
 
 /**

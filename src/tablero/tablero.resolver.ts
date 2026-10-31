@@ -9,15 +9,11 @@ import {
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
 import { tieneAlgunRol } from '../comun/auth/roles-efectivos.js';
 import { Roles } from '../comun/auth/roles.decorator.js';
-import { unaVezPorPeticion } from '../comun/dataloaders/dataloaders.js';
 import { FinanzasCliente } from '../finanzas/finanzas.cliente.js';
 import { MaterialesCliente } from '../materiales/materiales.cliente.js';
-import {
-  EstadoObra,
-  type ObraResumen,
-} from '../obras/modelos/obra-resumen.modelo.js';
 import { ObrasCliente } from '../obras/obras.cliente.js';
 import { filaTablero } from './filas.js';
+import { obrasEnEjecucion } from './obras-tablero.js';
 import {
   FilaTablero,
   IndicadoresTablero,
@@ -27,16 +23,6 @@ import {
 
 /** Roles que ven los cobros vencidos (contrato GraphQL). */
 const ROLES_FINANZAS = ['admin', 'gerente'];
-
-/** Obras EN_EJECUCION que ve el usuario, pedidas una sola vez por petición (las usan las filas y los indicadores). */
-function obrasEnEjecucion(
-  obrasCliente: ObrasCliente,
-  contexto: ContextoGraphql,
-): Promise<ObraResumen[]> {
-  return unaVezPorPeticion(contexto, 'tableroObras', () =>
-    obrasCliente.listar({ estado: EstadoObra.EN_EJECUCION }, contexto),
-  );
-}
 
 /**
  * 009: tablero de Supervisión. `tablero` no llama a nadie; cada parte la resuelve su @ResolveField, así que si un

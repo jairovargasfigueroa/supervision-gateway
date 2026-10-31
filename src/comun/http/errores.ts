@@ -1,6 +1,6 @@
 import { GraphQLError } from 'graphql';
 
-export type Servicio = 'obras' | 'materiales' | 'finanzas';
+export type Servicio = 'obras' | 'materiales' | 'finanzas' | 'ia';
 
 /** Código genérico de cada estado HTTP cuando el servicio no manda uno propio (convenciones, «Errores REST»). */
 const CODIGO_POR_ESTADO: Record<number, string> = {

@@ -36,6 +36,8 @@ type Obra {
   fotos(partidaId: ID, pagina: Int = 1, tamano: Int = 50): FotosPagina!
   planillas: [PlanillaResumen!]!
   cobros: [Cobro!]                  # Finanzas (pide tamano=100); null sin error si el rol no es admin ni gerente
+  riesgoRetraso: RiesgoRetraso      # 402 · IA; null con SERVICIO_NO_DISPONIBLE si no responde
+  historialRiesgo(limite: Int = 30): [PuntoRiesgo!]   # 402 · IA (misma llamada que riesgoRetraso)
 }
 type ContratoObra { contratoId: ID monto: Float! plazoDias: Int! anticipoPct: Float! retencionPct: Float! }
 type Partida {
@@ -90,12 +92,29 @@ type Tablero { indicadores: IndicadoresTablero obras: [FilaTablero!] }
 type IndicadoresTablero {
   obrasEnEjecucion: Int  obrasEnRiesgo: Int  materialesBajos: Int
   cobrosVencidos: ResumenMonto       # null sin error si el rol no es admin ni gerente
+  obrasRiesgoAlto: Int               # 402 · IA (mismo lote que las filas); null si no responde
 }
 type ResumenMonto { cantidad: Int! monto: Float! }
 type FilaTablero {
   obraId: ID! nombre: String! avancePct: Float! plazoPct: Float! diferencia: Float! enRiesgo: Boolean!
   materialesBajos: Int               # Materiales; null si no responde
   ultimaPlanilla: PlanillaCorta
+  riesgoRetraso: RiesgoRetraso       # 402 · IA, en lotes de hasta 100 obras; null si no responde
+}
+
+# 402 · riesgo de retraso (servicio de IA)
+enum NivelRiesgo { BAJO MEDIO ALTO SIN_DATOS }
+type FactorRiesgo { variable: String! descripcion: String! peso: Float! }
+type RiesgoRetraso {
+  probabilidad: Float  nivel: NivelRiesgo!  factores: [FactorRiesgo!]!
+  versionModelo: String  calculadaEn: String
+}
+type PuntoRiesgo { probabilidad: Float! calculadaEn: String! }
+type MetricasModeloRiesgo { aucRoc: Float! aucRocRegla: Float! recallMedio: Float! precisionAlto: Float! brier: Float! }
+type VariableModelo { nombre: String! descripcion: String! }
+type ModeloRiesgo {
+  versionModelo: String! entrenadoEn: String! datos: String! filasEntrenamiento: Int!   # datos: SINTETICOS o REALES, tal cual IA
+  metricas: MetricasModeloRiesgo! umbralMedio: Float! umbralAlto: Float! variables: [VariableModelo!]!
 }
 
 input AsignacionesEntrada { residenteId: ID! maestroId: ID! almaceneroId: ID! clienteId: ID! }
@@ -126,6 +145,7 @@ type Query {
   materiales(busqueda: String, soloActivos: Boolean, pagina: Int = 1, tamano: Int = 20): MaterialesPagina!   # 003 · admin, gerente, residente
   stockObra(obraId: ID!): [StockMaterial!]!                          # 003 · admin, gerente, residente (sus obras)
   tablero: Tablero!                                                  # 009 · admin, gerente, residente (sus obras)
+  modeloRiesgo: ModeloRiesgo                                         # 402 · admin, gerente, residente (IA)
 }
 
 type Mutation {
@@ -160,6 +180,14 @@ type Mutation {
 - `FilaTablero.materialesBajos` e `indicadores.materialesBajos` (suma de las filas): `GET /stock/resumen?obraIds=a,b,c` (Materiales), **una sola llamada** en lote con el DataLoader de la petición (Materiales acepta hasta 100 obras por llamada: con más, una llamada por cada 100); una obra que Materiales no devuelve cuenta 0. Sin obras en ejecución no se llama a Materiales. Si Obras falla, el indicador también vuelve `null` (no hay obras que sumar).
 - `indicadores.cobrosVencidos`: `vencidos` de `GET /cobros/resumen` (Finanzas); `null` sin error (y sin llamar a Finanzas) si el rol efectivo no es `admin` ni `gerente`.
 
+### Riesgo de retraso (402)
+
+- `FilaTablero.riesgoRetraso`: DataLoader de la petición que junta los `obraId` del tablero en llamadas a `GET /predicciones?obraIds=` (IA) de hasta 100 obras cada una, en paralelo (IA rechaza más con `400 DEMASIADAS_OBRAS`). Una obra que IA no devuelve queda `{ nivel: SIN_DATOS, probabilidad: null, factores: [], versionModelo: null, calculadaEn: null }`.
+- `IndicadoresTablero.obrasRiesgoAlto`: filas del tablero con nivel `ALTO`, con el mismo lote (sin obras en ejecución, 0 sin llamar a IA).
+- `Obra.riesgoRetraso` e `Obra.historialRiesgo(limite)`: **una sola** llamada por obra a `GET /obras/{id}/prediccion?historial=` (DataLoader de la petición), con el mayor `limite` pedido en la consulta (30 si solo se pide `riesgoRetraso`); cada `historialRiesgo` recibe sus últimos `limite` puntos (del más antiguo al más reciente). Obra visible sin predicción: `SIN_DATOS` e historial vacío. Los errores de IA llegan con su `codigo` (por ejemplo `404 OBRA_NO_ENCONTRADA`) y solo afectan a estos campos.
+- `modeloRiesgo`: `GET /modelos/riesgo-retraso`; `umbrales.medio` y `umbrales.alto` se exponen como `umbralMedio` y `umbralAlto`; `datos` (`SINTETICOS` o `REALES`) va tal cual. Sin modelo cargado: `null` con `MODELO_NO_DISPONIBLE`.
+- Si IA no responde: esos campos vuelven `null` con `extensions.codigo = "SERVICIO_NO_DISPONIBLE"` y `extensions.servicio = "ia"`; el resto llega.
+
 Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, reportes por voz) en sus especificaciones.
 
 ## Consume (REST)
@@ -170,6 +198,6 @@ Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, repo
 | Materiales | `GET /materiales`, `POST /materiales`, `PUT /materiales/{id}`, `GET /obras/{id}/stock`, `PUT /obras/{id}/stock/{materialId}/minimo`, `GET /obras/{id}/consumos`, `GET /stock/resumen` |
 | Finanzas | `GET /contratos`, `GET /cobros`, `GET /cobros/{id}`, `GET /cobros/resumen` |
 | Keycloak (cliente `gateway`) | `GET /admin/realms/supervision/roles/{rol}/users`, `GET /admin/realms/supervision/users/{id}` |
-| IA (capas 4 y 5) | se definen en sus especificaciones |
+| IA (capas 4 y 5) | 402: `GET /predicciones?obraIds=` (hasta 100 por llamada), `GET /obras/{id}/prediccion?historial=`, `GET /modelos/riesgo-retraso` |
 
-URLs base por variables de entorno: `OBRAS_URL`, `MATERIALES_URL`, `FINANZAS_URL`, `KEYCLOAK_URL`, `KEYCLOAK_GATEWAY_CLIENT_ID`, `KEYCLOAK_GATEWAY_CLIENT_SECRET`.
+URLs base por variables de entorno: `OBRAS_URL`, `MATERIALES_URL`, `FINANZAS_URL`, `IA_URL` (402; por defecto `http://localhost:8085`), `KEYCLOAK_URL`, `KEYCLOAK_GATEWAY_CLIENT_ID`, `KEYCLOAK_GATEWAY_CLIENT_SECRET`.
