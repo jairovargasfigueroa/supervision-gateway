@@ -36,6 +36,8 @@ type Obra {
   fotos(partidaId: ID, pagina: Int = 1, tamano: Int = 50): FotosPagina!
   planillas: [PlanillaResumen!]!
   cobros: [Cobro!]                  # Finanzas (pide tamano=100); null sin error si el rol no es admin ni gerente
+  riesgoRetraso: RiesgoRetraso      # 402 · IA; null con SERVICIO_NO_DISPONIBLE si no responde
+  historialRiesgo(limite: Int = 30): [PuntoRiesgo!]   # 402 · IA (misma llamada que riesgoRetraso)
 }
 type ContratoObra { contratoId: ID monto: Float! plazoDias: Int! anticipoPct: Float! retencionPct: Float! }
 type Partida {
@@ -143,6 +145,7 @@ type Query {
   materiales(busqueda: String, soloActivos: Boolean, pagina: Int = 1, tamano: Int = 20): MaterialesPagina!   # 003 · admin, gerente, residente
   stockObra(obraId: ID!): [StockMaterial!]!                          # 003 · admin, gerente, residente (sus obras)
   tablero: Tablero!                                                  # 009 · admin, gerente, residente (sus obras)
+  modeloRiesgo: ModeloRiesgo                                         # 402 · admin, gerente, residente (IA)
 }
 
 type Mutation {
@@ -181,6 +184,8 @@ type Mutation {
 
 - `FilaTablero.riesgoRetraso`: DataLoader de la petición que junta los `obraId` del tablero en llamadas a `GET /predicciones?obraIds=` (IA) de hasta 100 obras cada una, en paralelo (IA rechaza más con `400 DEMASIADAS_OBRAS`). Una obra que IA no devuelve queda `{ nivel: SIN_DATOS, probabilidad: null, factores: [], versionModelo: null, calculadaEn: null }`.
 - `IndicadoresTablero.obrasRiesgoAlto`: filas del tablero con nivel `ALTO`, con el mismo lote (sin obras en ejecución, 0 sin llamar a IA).
+- `Obra.riesgoRetraso` e `Obra.historialRiesgo(limite)`: **una sola** llamada por obra a `GET /obras/{id}/prediccion?historial=` (DataLoader de la petición), con el mayor `limite` pedido en la consulta (30 si solo se pide `riesgoRetraso`); cada `historialRiesgo` recibe sus últimos `limite` puntos (del más antiguo al más reciente). Obra visible sin predicción: `SIN_DATOS` e historial vacío. Los errores de IA llegan con su `codigo` (por ejemplo `404 OBRA_NO_ENCONTRADA`) y solo afectan a estos campos.
+- `modeloRiesgo`: `GET /modelos/riesgo-retraso`; `umbrales.medio` y `umbrales.alto` se exponen como `umbralMedio` y `umbralAlto`; `datos` (`SINTETICOS` o `REALES`) va tal cual. Sin modelo cargado: `null` con `MODELO_NO_DISPONIBLE`.
 - Si IA no responde: esos campos vuelven `null` con `extensions.codigo = "SERVICIO_NO_DISPONIBLE"` y `extensions.servicio = "ia"`; el resto llega.
 
 Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, reportes por voz) en sus especificaciones.

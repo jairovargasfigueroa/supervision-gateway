@@ -8,6 +8,15 @@ import { riesgoDesdePrediccion, sinPrediccion } from './riesgo.js';
 /** Máximo de obras por llamada a `GET /predicciones` (más: `400 DEMASIADAS_OBRAS`, contrato de IA). */
 export const OBRAS_POR_LOTE_IA = 100;
 
+/** Historial que devuelve IA si no se pide otro (`GET /obras/{id}/prediccion`, 1 a 90). */
+export const HISTORIAL_POR_DEFECTO = 30;
+
+/** Clave del DataLoader de la predicción de una obra: `limite` solo para `historialRiesgo`. */
+interface ClavePrediccionObra {
+  obraId: string;
+  limite?: number;
+}
+
 export type NivelRiesgoRest = 'BAJO' | 'MEDIO' | 'ALTO' | 'SIN_DATOS';
 
 /** Predicción de una obra tal como la devuelve IA (`GET /predicciones`, 402). */
@@ -90,6 +99,59 @@ export class IaCliente {
       },
       { maxBatchSize: OBRAS_POR_LOTE_IA },
     ).load(obraId);
+  }
+
+  /**
+   * Predicción e historial de una obra con el DataLoader de la petición (402): `Obra.riesgoRetraso` y
+   * `Obra.historialRiesgo(limite)` de la misma obra salen de **una sola** llamada a `GET /obras/{id}/prediccion`,
+   * pedida con el mayor `limite` de la petición (30 si nadie pide historial); cada `historialRiesgo` recibe sus
+   * últimos `limite` puntos. Si la llamada de una obra falla, solo los campos de esa obra reciben el error.
+   */
+  prediccionDeObra(
+    obraId: string,
+    limite: number | undefined,
+    contexto: ContextoGraphql,
+  ): Promise<PrediccionObraRest> {
+    return cargador<ClavePrediccionObra, PrediccionObraRest, string>(
+      contexto,
+      'prediccionObraIa',
+      async (claves) => {
+        const historialPorObra = new Map<string, number | undefined>();
+        for (const { obraId: id, limite: pedido } of claves) {
+          const actual = historialPorObra.get(id);
+          historialPorObra.set(
+            id,
+            pedido === undefined
+              ? actual
+              : Math.max(actual ?? Number.NEGATIVE_INFINITY, pedido),
+          );
+        }
+        const respuestas = new Map(
+          [...historialPorObra].map(([id, historial]) => [
+            id,
+            this.prediccionObra(
+              id,
+              historial ?? HISTORIAL_POR_DEFECTO,
+              contexto,
+            ).catch((error: unknown) =>
+              error instanceof Error ? error : new Error(String(error)),
+            ),
+          ]),
+        );
+        return Promise.all(
+          claves.map(async ({ obraId: id, limite: pedido }) => {
+            const respuesta = await respuestas.get(id)!;
+            if (respuesta instanceof Error || pedido === undefined)
+              return respuesta;
+            return {
+              ...respuesta,
+              historial: (respuesta.historial ?? []).slice(-pedido),
+            };
+          }),
+        );
+      },
+      { cacheKeyFn: (clave) => `${clave.obraId}:${clave.limite ?? ''}` },
+    ).load({ obraId, limite });
   }
 
   /** `GET /obras/{obraId}/prediccion?historial=N` (402); si no la ve, 404 OBRA_NO_ENCONTRADA. */

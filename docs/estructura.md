@@ -41,7 +41,7 @@ src/
   finanzas/              006: finanzas.cliente.ts (GET /contratos?obraId=, GET /cobros?obraId=&tamano=100, con DataLoader; 009: GET /cobros/resumen; 008: GET /cobros/{id} con DataLoader), finanzas.resolver.ts (Obra.finanzas y Obra.cobros: null sin error si el rol no es admin ni gerente)
     modelos/             finanzas-obra.modelo.ts (FinanzasObra), cobro.modelo.ts (Cobro, enum EstadoCobro)
     finanzas.module.ts
-  supervision/           capas 4 y 5: ia.cliente.ts (402: GET /predicciones en lotes de 100 con DataLoader, GET /obras/{id}/prediccion, GET /modelos/riesgo-retraso), riesgo.ts (RiesgoRetraso desde IA; SIN_DATOS si falta), riesgo-tablero.resolver.ts (FilaTablero.riesgoRetraso, IndicadoresTablero.obrasRiesgoAlto), supervision.module.ts
+  supervision/           capas 4 y 5: ia.cliente.ts (402: GET /predicciones en lotes de 100 con DataLoader, GET /obras/{id}/prediccion, GET /modelos/riesgo-retraso), riesgo.ts (RiesgoRetraso desde IA; SIN_DATOS si falta), riesgo-tablero.resolver.ts (FilaTablero.riesgoRetraso, IndicadoresTablero.obrasRiesgoAlto), riesgo.resolver.ts (Obra.riesgoRetraso e historialRiesgo en una sola llamada; modeloRiesgo), supervision.module.ts
     modelos/             riesgo.modelo.ts (NivelRiesgo, FactorRiesgo, RiesgoRetraso, PuntoRiesgo, ModeloRiesgo, ...)
 test/
   obras.e2e-spec.ts      GraphQL contra servicios simulados (servidores HTTP de prueba)
