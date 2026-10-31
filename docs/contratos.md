@@ -94,6 +94,7 @@ type IndicadoresTablero {
   obrasEnEjecucion: Int  obrasEnRiesgo: Int  materialesBajos: Int
   cobrosVencidos: ResumenMonto       # null sin error si el rol no es admin ni gerente
   obrasRiesgoAlto: Int               # 402 · IA (mismo lote que las filas); null si no responde
+  consumosAtipicosPendientes: Int    # 403 · IA (suma del mismo lote que las filas); null si no responde
 }
 type ResumenMonto { cantidad: Int! monto: Float! }
 type FilaTablero {
@@ -101,6 +102,7 @@ type FilaTablero {
   materialesBajos: Int               # Materiales; null si no responde
   ultimaPlanilla: PlanillaCorta
   riesgoRetraso: RiesgoRetraso       # 402 · IA, en lotes de hasta 100 obras; null si no responde
+  consumosAtipicosPendientes: Int    # 403 · IA, en lotes de hasta 100 obras; null si no responde
 }
 
 # 402 · riesgo de retraso (servicio de IA)
@@ -204,7 +206,8 @@ type Mutation {
 ### Consumos atípicos (403)
 
 - `Obra.consumosAtipicos(estado)`: `GET /consumos-atipicos?obraId=&estado=` (IA; sin `estado`, todas las revisiones), de la más reciente a la más antigua. `material` sale del catálogo de Materiales (pedido una sola vez por petición; un material que no está en el catálogo vuelve `null`) y `revisadoPor` de Keycloak; si uno falla, solo ese campo vuelve `null`.
-- Si IA no responde: el campo vuelve `null` con `SERVICIO_NO_DISPONIBLE` (`extensions.servicio = "ia"`); los errores de IA llegan con su `codigo` (`404 OBRA_NO_ENCONTRADA`).
+- `FilaTablero.consumosAtipicosPendientes`: DataLoader de la petición que junta los `obraId` del tablero en llamadas a `GET /consumos-atipicos/resumen?obraIds=` de hasta 100 obras cada una, en paralelo (IA rechaza más con `400 DEMASIADAS_OBRAS`); una obra que IA no devuelve cuenta 0. `IndicadoresTablero.consumosAtipicosPendientes` suma ese mismo lote (sin obras en ejecución, 0 sin llamar a IA).
+- Si IA no responde: esos campos vuelven `null` con `SERVICIO_NO_DISPONIBLE` (`extensions.servicio = "ia"`); los errores de IA llegan con su `codigo` (`404 OBRA_NO_ENCONTRADA`).
 
 Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, reportes por voz) en sus especificaciones.
 
@@ -216,6 +219,6 @@ Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, repo
 | Materiales | `GET /materiales`, `POST /materiales`, `PUT /materiales/{id}`, `GET /obras/{id}/stock`, `PUT /obras/{id}/stock/{materialId}/minimo`, `GET /obras/{id}/consumos`, `GET /stock/resumen` |
 | Finanzas | `GET /contratos`, `GET /cobros`, `GET /cobros/{id}`, `GET /cobros/resumen` |
 | Keycloak (cliente `gateway`) | `GET /admin/realms/supervision/roles/{rol}/users`, `GET /admin/realms/supervision/users/{id}` |
-| IA (capas 4 y 5) | 402: `GET /predicciones?obraIds=` (hasta 100 por llamada), `GET /obras/{id}/prediccion?historial=`, `GET /modelos/riesgo-retraso`; 403: `GET /consumos-atipicos?obraId=&estado=` |
+| IA (capas 4 y 5) | 402: `GET /predicciones?obraIds=` (hasta 100 por llamada), `GET /obras/{id}/prediccion?historial=`, `GET /modelos/riesgo-retraso`; 403: `GET /consumos-atipicos?obraId=&estado=`, `GET /consumos-atipicos/resumen?obraIds=` (hasta 100 por llamada) |
 
 URLs base por variables de entorno: `OBRAS_URL`, `MATERIALES_URL`, `FINANZAS_URL`, `IA_URL` (402; por defecto `http://localhost:8085`), `KEYCLOAK_URL`, `KEYCLOAK_GATEWAY_CLIENT_ID`, `KEYCLOAK_GATEWAY_CLIENT_SECRET`.

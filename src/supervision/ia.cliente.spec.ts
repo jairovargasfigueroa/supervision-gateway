@@ -55,6 +55,16 @@ describe('IaCliente', () => {
     );
   });
 
+  it('resumenAtipicos pide GET /consumos-atipicos/resumen con los ids separados por coma', async () => {
+    const { servicio, ia } = crear();
+    await ia.resumenAtipicos(['o1', 'a/b'], contexto);
+    expect(servicio.consultar).toHaveBeenCalledWith(
+      'ia',
+      '/consumos-atipicos/resumen?obraIds=o1,a%2Fb',
+      contexto,
+    );
+  });
+
   it('modeloRiesgo pide GET /modelos/riesgo-retraso', async () => {
     const { servicio, ia } = crear();
     await ia.modeloRiesgo(contexto);

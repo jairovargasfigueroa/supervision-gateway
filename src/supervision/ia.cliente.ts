@@ -188,6 +188,38 @@ export class IaCliente {
     );
   }
 
+  /** `GET /consumos-atipicos/resumen?obraIds=a,b,c` (403): hasta 100 obras; solo vienen las visibles. */
+  resumenAtipicos(
+    obraIds: readonly string[],
+    contexto: ContextoGraphql,
+  ): Promise<{ obraId: string; pendientes: number }[]> {
+    return this.cliente.consultar<{ obraId: string; pendientes: number }[]>(
+      'ia',
+      `/consumos-atipicos/resumen?obraIds=${obraIds.map(encodeURIComponent).join(',')}`,
+      contexto,
+    );
+  }
+
+  /**
+   * Consumos atípicos PENDIENTE de una obra con el DataLoader de la petición (403): todas las obras del tablero (filas e
+   * indicador) se juntan en llamadas a `GET /consumos-atipicos/resumen` de hasta 100 obras, en paralelo. Una obra que
+   * IA no devuelve cuenta 0.
+   */
+  pendientesEnLote(obraId: string, contexto: ContextoGraphql): Promise<number> {
+    return cargador<string, number>(
+      contexto,
+      'atipicosPendientesIa',
+      async (obraIds) => {
+        const resumen = await this.resumenAtipicos(obraIds, contexto);
+        const porObra = new Map(
+          resumen.map((fila) => [fila.obraId, fila.pendientes]),
+        );
+        return obraIds.map((id) => porObra.get(id) ?? 0);
+      },
+      { maxBatchSize: OBRAS_POR_LOTE_IA },
+    ).load(obraId);
+  }
+
   /** `GET /modelos/riesgo-retraso` (402); sin modelo cargado, 503 MODELO_NO_DISPONIBLE. */
   modeloRiesgo(contexto: ContextoGraphql): Promise<ModeloRiesgoRest> {
     return this.cliente.consultar<ModeloRiesgoRest>(

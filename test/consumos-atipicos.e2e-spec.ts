@@ -288,4 +288,120 @@ describe('Consumos atípicos (e2e)', () => {
       });
     });
   });
+
+  describe('tablero', () => {
+    const fila = (id: string) => ({
+      ...OBRA_REST,
+      id,
+      nombre: `Obra ${id}`,
+      ultimaPlanilla: null,
+    });
+    const CONSULTA_TABLERO = `{
+      tablero {
+        indicadores { obrasEnEjecucion consumosAtipicosPendientes }
+        obras { obraId enRiesgo consumosAtipicosPendientes }
+      }
+    }`;
+    /** Ids pedidos en una llamada a `GET /consumos-atipicos/resumen?obraIds=`. */
+    const idsPedidos = (ruta: string) =>
+      new URL(ruta, 'http://x').searchParams.get('obraIds')!.split(',');
+
+    beforeEach(() => {
+      obras.responder = porRuta({
+        '/obras': { cuerpo: ['o1', 'o2', 'o3'].map(fila) },
+      });
+      ia.responder = porRuta({
+        '/consumos-atipicos/resumen': {
+          cuerpo: [
+            { obraId: 'o1', pendientes: 2 },
+            { obraId: 'o2', pendientes: 0 },
+          ],
+        },
+      });
+    });
+
+    it('filas e indicador en una sola llamada al resumen; una obra que IA no devuelve cuenta 0', async () => {
+      const respuesta = await consultar(CONSULTA_TABLERO, {}, ['gerente']);
+      expect(respuesta.body.errors).toBeUndefined();
+      expect(respuesta.body.data.tablero).toEqual({
+        indicadores: { obrasEnEjecucion: 3, consumosAtipicosPendientes: 2 },
+        obras: [
+          { obraId: 'o1', enRiesgo: true, consumosAtipicosPendientes: 2 },
+          { obraId: 'o2', enRiesgo: true, consumosAtipicosPendientes: 0 },
+          { obraId: 'o3', enRiesgo: true, consumosAtipicosPendientes: 0 },
+        ],
+      });
+      expect(ia.rutas).toEqual(['/consumos-atipicos/resumen?obraIds=o1,o2,o3']);
+    });
+
+    it.each([
+      [100, [100]],
+      [101, [100, 1]],
+      [230, [100, 100, 30]],
+    ])(
+      '%i obras en lotes de hasta 100 obraId (%j)',
+      async (cantidad, lotes) => {
+        obras.responder = porRuta({
+          '/obras': {
+            cuerpo: Array.from({ length: cantidad }, (_, i) =>
+              fila(`obra-${i}`),
+            ),
+          },
+        });
+        ia.responder = ({ ruta }) => ({
+          cuerpo: idsPedidos(ruta).map((obraId) => ({
+            obraId,
+            pendientes: 1,
+          })),
+        });
+        const respuesta = await consultar(CONSULTA_TABLERO);
+        expect(respuesta.body.errors).toBeUndefined();
+        expect(ia.pedidos.map((p) => idsPedidos(p.ruta).length)).toEqual(lotes);
+        expect(
+          respuesta.body.data.tablero.indicadores.consumosAtipicosPendientes,
+        ).toBe(cantidad);
+      },
+    );
+
+    it('sin obras en ejecución: 0 sin llamar a IA', async () => {
+      obras.responder = () => ({ cuerpo: [] });
+      const respuesta = await consultar(CONSULTA_TABLERO);
+      expect(respuesta.body.data.tablero).toEqual({
+        indicadores: { obrasEnEjecucion: 0, consumosAtipicosPendientes: 0 },
+        obras: [],
+      });
+      expect(ia.pedidos).toHaveLength(0);
+    });
+
+    it('IA tarda más de 3 s: columna e indicador null con SERVICIO_NO_DISPONIBLE; el resto del tablero llega', async () => {
+      ia.responder = () => ({ cuerpo: [], esperaMs: 3500 });
+      const respuesta = await consultar(CONSULTA_TABLERO);
+      expect(respuesta.body.data.tablero).toEqual({
+        indicadores: { obrasEnEjecucion: 3, consumosAtipicosPendientes: null },
+        obras: ['o1', 'o2', 'o3'].map((obraId) => ({
+          obraId,
+          enRiesgo: true,
+          consumosAtipicosPendientes: null,
+        })),
+      });
+      const errores = respuesta.body.errors as {
+        path: (string | number)[];
+        extensions: Record<string, unknown>;
+      }[];
+      expect(errores.map((error) => error.path)).toEqual(
+        expect.arrayContaining([
+          ['tablero', 'indicadores', 'consumosAtipicosPendientes'],
+          ['tablero', 'obras', 1, 'consumosAtipicosPendientes'],
+        ]),
+      );
+      for (const error of errores) {
+        expect(error.extensions).toMatchObject({
+          codigo: 'SERVICIO_NO_DISPONIBLE',
+          servicio: 'ia',
+        });
+      }
+      // Un solo lote y su reintento
+      expect(ia.pedidos).toHaveLength(2);
+    }, 15000);
+  });
 });
