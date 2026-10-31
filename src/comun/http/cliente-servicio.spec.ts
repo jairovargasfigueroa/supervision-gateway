@@ -61,7 +61,7 @@ const contexto = {
 } as unknown as ContextoGraphql;
 const cliente = (tiempoMaximoMs = 200, url = () => base) =>
   new ClienteServicio({
-    urls: { obras: url(), materiales: url(), finanzas: url() },
+    urls: { obras: url(), materiales: url(), finanzas: url(), ia: url() },
     tiempoMaximoMs,
   });
 
@@ -168,6 +168,34 @@ describe('ClienteServicio', () => {
       servicio: 'obras',
       estado: 422,
       errores: [{ campo: 'partidas', mensaje: 'No suma el monto' }],
+    });
+  });
+
+  it('402: IA lento corta a los 3 s (tiempo máximo), reintenta la consulta y responde SERVICIO_NO_DISPONIBLE con servicio ia', async () => {
+    responder = () => ({ estado: 200, cuerpo: [], demoraMs: 500 });
+    const error = await errorDe(
+      cliente(100).consultar('ia', '/predicciones?obraIds=o1', contexto),
+    );
+    expect(llamadas).toHaveLength(2);
+    expect(error.extensions).toMatchObject({
+      codigo: 'SERVICIO_NO_DISPONIBLE',
+      servicio: 'ia',
+    });
+  });
+
+  it('402: los errores de IA llegan con su codigo y servicio ia', async () => {
+    responder = () => ({
+      estado: 400,
+      cuerpo: { title: 'Demasiadas obras', codigo: 'DEMASIADAS_OBRAS' },
+    });
+    const error = await errorDe(
+      cliente().consultar('ia', '/predicciones?obraIds=o1', contexto),
+    );
+    expect(llamadas).toHaveLength(1);
+    expect(error.extensions).toMatchObject({
+      codigo: 'DEMASIADAS_OBRAS',
+      servicio: 'ia',
+      estado: 400,
     });
   });
 

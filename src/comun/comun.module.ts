@@ -17,6 +17,8 @@ import { UsuariosResolver } from './keycloak/usuarios.resolver.js';
             obras: config.get('OBRAS_URL', 'http://localhost:8081'),
             materiales: config.get('MATERIALES_URL', 'http://localhost:8082'),
             finanzas: config.get('FINANZAS_URL', 'http://localhost:8083'),
+            // Capas 4 y 5 (402): servicio de IA
+            ia: config.get('IA_URL', 'http://localhost:8085'),
           },
           // Convenciones, «Errores GraphQL»: tiempo máximo por llamada a un servicio
           tiempoMaximoMs: 3000,

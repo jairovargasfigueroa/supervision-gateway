@@ -20,6 +20,7 @@ import { MaterialesModule } from './materiales/materiales.module.js';
 import { ObrasModule } from './obras/obras.module.js';
 import { PlanillasModule } from './planillas/planillas.module.js';
 import { SaludResolver } from './salud/salud.resolver.js';
+import { SupervisionModule } from './supervision/supervision.module.js';
 import { TableroModule } from './tablero/tablero.module.js';
 
 const enProduccion = process.env.NODE_ENV === 'production';
@@ -51,6 +52,7 @@ const enProduccion = process.env.NODE_ENV === 'production';
     FinanzasModule,
     PlanillasModule,
     TableroModule,
+    SupervisionModule,
   ],
   providers: [
     SaludResolver,
