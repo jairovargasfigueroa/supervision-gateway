@@ -13,18 +13,19 @@ enum EstadoPlanilla { BORRADOR PRESENTADA APROBANDO APROBADA OBSERVADA }
 enum EstadoStock { BAJO JUSTO OK }
 enum EstadoCobro { PENDIENTE VENCIDO }
 enum TipoMaterial { CEMENTO ACERO AGREGADO LADRILLO MADERA ELECTRICO SANITARIO PINTURA OTRO }
+enum ZonaObra { NORTE SUR ESTE OESTE CENTRO }   # 401
 
 type Usuario { id: ID! nombre: String! correo: String }
 
 type ObraResumen {
-  id: ID! nombre: String! ubicacion: String! estado: EstadoObra! fechaInicio: String!
+  id: ID! nombre: String! ubicacion: String! zona: ZonaObra estado: EstadoObra! fechaInicio: String!   # zona: 401, tal cual Obras (null = sin zona)
   avancePct: Float! plazoPct: Float! enRiesgo: Boolean!
   ultimaPlanilla: PlanillaCorta
 }
 type PlanillaCorta { periodo: String! estado: EstadoPlanilla! }
 
 type Obra {
-  id: ID! nombre: String! ubicacion: String! estado: EstadoObra! fechaInicio: String!
+  id: ID! nombre: String! ubicacion: String! zona: ZonaObra estado: EstadoObra! fechaInicio: String!   # zona: 401
   motivoRechazoContrato: String
   residente: Usuario  maestro: Usuario  almacenero: Usuario  cliente: Usuario
   contrato: ContratoObra!
@@ -105,7 +106,7 @@ input PartidaEntrada {
   meses: String insumos: [InsumoEntrada!]
 }
 input RegistrarObraEntrada {
-  nombre: String! ubicacion: String! fechaInicio: String!
+  nombre: String! ubicacion: String! zona: ZonaObra fechaInicio: String!   # zona: 401, opcional; Obras valida (400, campo zona)
   asignaciones: AsignacionesEntrada! contrato: ContratoEntrada! partidas: [PartidaEntrada!]!
 }
 input AtributoEntrada { nombre: String! valor: String! }
