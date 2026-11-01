@@ -237,6 +237,11 @@ type Query {
   modeloRiesgo: ModeloRiesgo                                         # 402 · admin, gerente, residente (IA)
   catalogoReportes: CatalogoReportes!                                # 503 · admin, gerente (IA)
   consultasReporte(limite: Int): [ConsultaReporteCorta!]!            # 503 · admin, gerente (IA)
+  agentes: [AgenteInfo!]!                                            # 502 · admin, gerente, residente (sin CONTROL_COBROS: lo aplica IA)
+  ejecucionesAgente(agente: Agente, estado: EstadoEjecucion, limite: Int): [EjecucionCorta!]!   # 502 · admin, gerente
+  ejecucionAgente(id: ID!): EjecucionAgente                          # 502 · admin, gerente
+  hallazgos(agente: Agente, obraId: ID): [Hallazgo!]!                # 502 · admin, gerente, residente (sus obras, sin CONTROL_COBROS)
+  sugerencias(estado: EstadoSugerencia, agente: Agente, obraId: ID, limite: Int): [Sugerencia!]!   # 502 · admin, gerente, residente (sus obras, sin CONTROL_COBROS)
 }
 
 type Mutation {
@@ -295,7 +300,13 @@ type Mutation {
 - La `receta` que manda IA no se expone. Los errores de IA llegan en `extensions.codigo` con `extensions.servicio = "ia"` y `data: null`: `TEXTO_INVALIDO` y `DATOS_INVALIDOS` (400), `INTENCION_NO_RECONOCIDA` (422), `RECETA_INVALIDA` (422, con `extensions.errores[]`), `DEMASIADAS_CONSULTAS` (429), `LLM_NO_DISPONIBLE`, `REPORTES_NO_DISPONIBLES` y `SERVICIO_NO_DISPONIBLE` (503), `TIEMPO_AGOTADO` (504). Si IA no responde en 60 s: `SERVICIO_NO_DISPONIBLE`.
 - `filas` es `[[String]!]!`: code-first no puede declararlo, así que `comun/graphql/listas-anidadas.ts` ajusta la lista interna al armar el esquema.
 
-La capa 5 agrega además los tipos y campos de agentes y sugerencias (502) en su especificación.
+### Agentes (502)
+
+- `agentes` → `GET /agentes`; `ejecucionesAgente(agente, estado, limite)` → `GET /ejecuciones?agente=&estado=&limite=`; `ejecucionAgente(id)` → `GET /ejecuciones/{id}`; `hallazgos(agente, obraId)` → `GET /hallazgos?agente=&obraId=`; `sugerencias(estado, agente, obraId, limite)` → `GET /sugerencias?estado=&agente=&obraId=&limite=`. Solo se envían los filtros que vienen; los rangos de `limite` los valida IA (`400 DATOS_INVALIDOS`). 3 s y un reintento.
+- Por rol, el gateway responde `SIN_PERMISO` sin llamar a IA (`ejecucionesAgente` y `ejecucionAgente`: `admin` y `gerente`; el resto también `residente`). Lo fino (residente: sus obras y nunca `CONTROL_COBROS`) lo aplica IA.
+- `EjecucionAgente.hallazgos`: `GET /ejecuciones/{id}` los manda sin `ejecucionId`, `agente` ni `detectadoEn`; el gateway los toma de la ejecución (`detectadoEn` = `terminadaEn`).
+- `EjecucionAgente.solicitadaPor` y `Sugerencia.decididaPor`: Keycloak con la caché de 5 minutos y el DataLoader de la petición (006); `null` sin llamar a Keycloak si IA manda `null` (programada o pendiente); si Keycloak falla, solo ese campo vuelve `null`.
+- `ejecucionAgente(id)` inexistente: `null` con `EJECUCION_NO_ENCONTRADA`. Si IA no responde: `SERVICIO_NO_DISPONIBLE` con `extensions.servicio = "ia"`.
 
 ## Consume (REST)
 

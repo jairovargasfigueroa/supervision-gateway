@@ -1,5 +1,10 @@
 import { Module } from '@nestjs/common';
 import { MaterialesModule } from '../materiales/materiales.module.js';
+import {
+  AgentesResolver,
+  EjecucionAgenteResolver,
+  SugerenciaResolver,
+} from './agentes.resolver.js';
 import { ObrasModule } from '../obras/obras.module.js';
 import {
   FilaTableroAtipicosResolver,
@@ -17,7 +22,7 @@ import {
 } from './riesgo-tablero.resolver.js';
 import { ModeloRiesgoResolver, ObraRiesgoResolver } from './riesgo.resolver.js';
 
-/** Capas 4 y 5: campos que vienen del servicio de IA (riesgo de retraso, 402; consumos atípicos, 403; reportes, 503). */
+/** Capas 4 y 5: campos que vienen del servicio de IA (riesgo de retraso, 402; consumos atípicos, 403; reportes, 503; agentes, 502). */
 @Module({
   imports: [ObrasModule, MaterialesModule],
   providers: [
@@ -31,6 +36,9 @@ import { ModeloRiesgoResolver, ObraRiesgoResolver } from './riesgo.resolver.js';
     FilaTableroAtipicosResolver,
     IndicadoresAtipicosResolver,
     ReportesResolver,
+    AgentesResolver,
+    EjecucionAgenteResolver,
+    SugerenciaResolver,
   ],
   exports: [IaCliente],
 })
