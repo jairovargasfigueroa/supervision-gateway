@@ -39,6 +39,8 @@ type Obra {
   riesgoRetraso: RiesgoRetraso      # 402 · IA; null con SERVICIO_NO_DISPONIBLE si no responde
   historialRiesgo(limite: Int = 30): [PuntoRiesgo!]   # 402 · IA (misma llamada que riesgoRetraso)
   consumosAtipicos(estado: EstadoRevision): [ConsumoAtipico!]   # 403 · IA; null con SERVICIO_NO_DISPONIBLE si no responde
+  hallazgos(agente: Agente): [Hallazgo!]                         # 502 · IA; null con SERVICIO_NO_DISPONIBLE si no responde
+  sugerencias(estado: EstadoSugerencia): [Sugerencia!]           # 502 · IA; null con SERVICIO_NO_DISPONIBLE si no responde
 }
 type ContratoObra { contratoId: ID monto: Float! plazoDias: Int! anticipoPct: Float! retencionPct: Float! }
 type Partida {
@@ -158,6 +160,54 @@ type ConjuntoDisponible {
 type AtajoDisponible { atajo: AtajoReporte! titulo: String! descripcion: String! }
 type CatalogoReportes { conjuntos: [ConjuntoDisponible!]! atajos: [AtajoDisponible!]! }
 
+# 502 · agentes en el ERP (servicio de IA)
+enum Agente { SEGUIMIENTO_OBRAS CONTROL_MATERIALES CONTROL_COBROS }
+enum OrigenEjecucion { PROGRAMADA MANUAL }
+enum EstadoEjecucion { EN_CURSO TERMINADA FALLIDA }
+enum EstadoSugerencia { PENDIENTE APROBADA RECHAZADA }
+enum Severidad { ALTA MEDIA BAJA }
+enum TipoHallazgo {
+  ATRASO RIESGO_DE_ATRASO SIN_REGISTRO_DIARIO PLANILLA_PENDIENTE
+  STOCK_BAJO STOCK_JUSTO CONSUMO_EXCEDIDO SALIDA_SIN_STOCK CONSUMO_ATIPICO
+  COBRO_VENCIDO COBRO_POR_VENCER PLANILLA_SIN_RESPUESTA PLANILLA_OBSERVADA_SIN_CORREGIR
+}
+enum AccionSugerida {
+  REVISAR_PROGRAMA_OBRA PROGRAMAR_VISITA SOLICITAR_INFORME_RESIDENTE COMPLETAR_DIARIO_OBRA
+  VERIFICAR_INVENTARIO REVISAR_CONSUMO_PARTIDA EVALUAR_REPOSICION REVISAR_SALIDAS_SIN_STOCK REVISAR_CONSUMO_ATIPICO
+  CONTACTAR_CLIENTE_COBRO RECORDAR_REVISION_PLANILLA CORREGIR_PLANILLA_OBSERVADA REVISAR_SALDO_CONTRATO
+}
+type AgenteInfo {
+  agente: Agente! nombre: String! mision: String! herramientas: [String!]!
+  ultimaEjecucion: EjecucionCorta  sugerenciasPendientes: Int!
+}
+type EjecucionCorta {
+  id: ID! agente: Agente! origen: OrigenEjecucion! estado: EstadoEjecucion!
+  iniciadaEn: String! terminadaEn: String cantidadHallazgos: Int!
+}
+type EjecucionAgente {
+  id: ID! agente: Agente! origen: OrigenEjecucion! estado: EstadoEjecucion!
+  solicitadaPor: Usuario iniciadaEn: String! terminadaEn: String proveedorLlm: String! modelo: String!   # solicitadaPor: Keycloak (caché de 5 min, 006)
+  resumen: String error: ErrorEjecucion
+  pasos: [PasoEjecucion!]! hallazgos: [Hallazgo!]!
+}
+type ErrorEjecucion { codigo: String! mensaje: String! }
+type PasoEjecucion {
+  numero: Int! servidor: String! herramienta: String! argumentos: String! resultadoResumen: String!   # servidor: obras, materiales, finanzas o ia
+  en: String! duracionMs: Int! error: String
+}
+type Hallazgo {
+  ejecucionId: ID! agente: Agente! obraId: ID! obraNombre: String!
+  tipo: TipoHallazgo! severidad: Severidad! situacion: String! causaProbable: String!
+  evidencia: [Evidencia!]! detectadoEn: String!
+}
+type Evidencia { herramienta: String! dato: String! }
+type Sugerencia {
+  id: ID! ejecucionId: ID! agente: Agente! obraId: ID! obraNombre: String!
+  accion: AccionSugerida! accionTexto: String! descripcion: String!
+  estado: EstadoSugerencia! creadaEn: String!
+  decididaPor: Usuario decididaEn: String comentario: String   # decididaPor: Keycloak (caché de 5 min, 006)
+}
+
 input AsignacionesEntrada { residenteId: ID! maestroId: ID! almaceneroId: ID! clienteId: ID! }
 input ContratoEntrada { monto: Float! plazoDias: Int! anticipoPct: Float! retencionPct: Float! firmadoEn: String! }
 input InsumoEntrada { materialId: ID! cantidadPorUnidad: Float! }
@@ -189,6 +239,11 @@ type Query {
   modeloRiesgo: ModeloRiesgo                                         # 402 · admin, gerente, residente (IA)
   catalogoReportes: CatalogoReportes!                                # 503 · admin, gerente (IA)
   consultasReporte(limite: Int): [ConsultaReporteCorta!]!            # 503 · admin, gerente (IA)
+  agentes: [AgenteInfo!]!                                            # 502 · admin, gerente, residente (sin CONTROL_COBROS: lo aplica IA)
+  ejecucionesAgente(agente: Agente, estado: EstadoEjecucion, limite: Int): [EjecucionCorta!]!   # 502 · admin, gerente
+  ejecucionAgente(id: ID!): EjecucionAgente                          # 502 · admin, gerente
+  hallazgos(agente: Agente, obraId: ID): [Hallazgo!]!                # 502 · admin, gerente, residente (sus obras, sin CONTROL_COBROS)
+  sugerencias(estado: EstadoSugerencia, agente: Agente, obraId: ID, limite: Int): [Sugerencia!]!   # 502 · admin, gerente, residente (sus obras, sin CONTROL_COBROS)
 }
 
 type Mutation {
@@ -201,6 +256,9 @@ type Mutation {
   presentarPlanilla(id: ID!, version: Int!): Planilla!                       # 007 · residente asignado
   revisarConsumoAtipico(id: ID!, estado: EstadoRevision!, comentario: String): ConsumoAtipico!   # 403 · admin, residente (asignado: lo valida IA)
   consultarReporte(texto: String, atajo: AtajoReporte): ConsultaReporte!     # 503 · admin, gerente (IA, 60 s)
+  ejecutarAgente(agente: Agente!): EjecucionCorta!                           # 502 · admin, gerente
+  aprobarSugerencia(id: ID!, comentario: String): Sugerencia!                # 502 · admin, gerente, residente (sus obras, sin CONTROL_COBROS)
+  rechazarSugerencia(id: ID!, motivo: String!): Sugerencia!                  # 502 · admin, gerente, residente (sus obras, sin CONTROL_COBROS)
 }
 ```
 
@@ -247,7 +305,15 @@ type Mutation {
 - La `receta` que manda IA no se expone. Los errores de IA llegan en `extensions.codigo` con `extensions.servicio = "ia"` y `data: null`: `TEXTO_INVALIDO` y `DATOS_INVALIDOS` (400), `INTENCION_NO_RECONOCIDA` (422), `RECETA_INVALIDA` (422, con `extensions.errores[]`), `DEMASIADAS_CONSULTAS` (429), `LLM_NO_DISPONIBLE`, `REPORTES_NO_DISPONIBLES` y `SERVICIO_NO_DISPONIBLE` (503), `TIEMPO_AGOTADO` (504). Si IA no responde en 60 s: `SERVICIO_NO_DISPONIBLE`.
 - `filas` es `[[String]!]!`: code-first no puede declararlo, así que `comun/graphql/listas-anidadas.ts` ajusta la lista interna al armar el esquema.
 
-La capa 5 agrega además los tipos y campos de agentes y sugerencias (502) en su especificación.
+### Agentes (502)
+
+- `agentes` → `GET /agentes`; `ejecucionesAgente(agente, estado, limite)` → `GET /ejecuciones?agente=&estado=&limite=`; `ejecucionAgente(id)` → `GET /ejecuciones/{id}`; `hallazgos(agente, obraId)` → `GET /hallazgos?agente=&obraId=`; `sugerencias(estado, agente, obraId, limite)` → `GET /sugerencias?estado=&agente=&obraId=&limite=`. Solo se envían los filtros que vienen; los rangos de `limite` los valida IA (`400 DATOS_INVALIDOS`). 3 s y un reintento.
+- Por rol, el gateway responde `SIN_PERMISO` sin llamar a IA (`ejecucionesAgente` y `ejecucionAgente`: `admin` y `gerente`; el resto también `residente`). Lo fino (residente: sus obras y nunca `CONTROL_COBROS`) lo aplica IA.
+- `EjecucionAgente.hallazgos`: `GET /ejecuciones/{id}` los manda sin `ejecucionId`, `agente` ni `detectadoEn`; el gateway los toma de la ejecución (`detectadoEn` = `terminadaEn`).
+- `EjecucionAgente.solicitadaPor` y `Sugerencia.decididaPor`: Keycloak con la caché de 5 minutos y el DataLoader de la petición (006); `null` sin llamar a Keycloak si IA manda `null` (programada o pendiente); si Keycloak falla, solo ese campo vuelve `null`.
+- `Obra.hallazgos(agente)` → `GET /hallazgos?obraId=&agente=` y `Obra.sugerencias(estado)` → `GET /sugerencias?obraId=&estado=` (una llamada por obra y filtro, con el DataLoader de la petición). Si IA no responde, solo ese campo vuelve `null` con `SERVICIO_NO_DISPONIBLE` y el resto de la obra llega.
+- `ejecutarAgente` → `POST /agentes/{agente}/ejecuciones` (sin cuerpo); `aprobarSugerencia` → `POST /sugerencias/{id}/aprobar` `{ comentario }` (`comentario` solo si viene); `rechazarSugerencia` → `POST /sugerencias/{id}/rechazar` `{ motivo }`. Sin reintento. Los errores de IA llegan en `extensions.codigo` con `extensions.servicio = "ia"` y `data: null`: `AGENTE_INVALIDO` (400), `EJECUCION_EN_CURSO` (409), `SUGERENCIA_NO_ENCONTRADA` (404, también si no puede verla), `SUGERENCIA_YA_DECIDIDA` (409), `COMENTARIO_INVALIDO` (422, con `extensions.errores[]`) y `MOTIVO_INVALIDO` (422). Aprobar solo registra la decisión.
+- `ejecucionAgente(id)` inexistente: `null` con `EJECUCION_NO_ENCONTRADA`. Si IA no responde: `SERVICIO_NO_DISPONIBLE` con `extensions.servicio = "ia"`.
 
 ## Consume (REST)
 
@@ -257,6 +323,6 @@ La capa 5 agrega además los tipos y campos de agentes y sugerencias (502) en su
 | Materiales | `GET /materiales`, `POST /materiales`, `PUT /materiales/{id}`, `GET /obras/{id}/stock`, `PUT /obras/{id}/stock/{materialId}/minimo`, `GET /obras/{id}/consumos`, `GET /stock/resumen` |
 | Finanzas | `GET /contratos`, `GET /cobros`, `GET /cobros/{id}`, `GET /cobros/resumen` |
 | Keycloak (cliente `gateway`) | `GET /admin/realms/supervision/roles/{rol}/users`, `GET /admin/realms/supervision/users/{id}` |
-| IA (capas 4 y 5) | 402: `GET /predicciones?obraIds=` (hasta 100 por llamada), `GET /obras/{id}/prediccion?historial=`, `GET /modelos/riesgo-retraso`; 403: `GET /consumos-atipicos?obraId=&estado=`, `GET /consumos-atipicos/resumen?obraIds=` (hasta 100 por llamada), `PUT /consumos-atipicos/{id}/revision`; 503: `GET /catalogo-reportes`, `GET /consultas-reporte?limite=`, `POST /consultas-reporte` (60 s) |
+| IA (capas 4 y 5) | 402: `GET /predicciones?obraIds=` (hasta 100 por llamada), `GET /obras/{id}/prediccion?historial=`, `GET /modelos/riesgo-retraso`; 403: `GET /consumos-atipicos?obraId=&estado=`, `GET /consumos-atipicos/resumen?obraIds=` (hasta 100 por llamada), `PUT /consumos-atipicos/{id}/revision`; 503: `GET /catalogo-reportes`, `GET /consultas-reporte?limite=`, `POST /consultas-reporte` (60 s); 502: `GET /agentes`, `POST /agentes/{agente}/ejecuciones`, `GET /ejecuciones?agente=&estado=&limite=`, `GET /ejecuciones/{id}`, `GET /hallazgos?agente=&obraId=`, `GET /sugerencias?estado=&agente=&obraId=&limite=`, `POST /sugerencias/{id}/aprobar`, `POST /sugerencias/{id}/rechazar` |
 
 URLs base por variables de entorno: `OBRAS_URL`, `MATERIALES_URL`, `FINANZAS_URL`, `IA_URL` (402; por defecto `http://localhost:8085`), `KEYCLOAK_URL`, `KEYCLOAK_GATEWAY_CLIENT_ID`, `KEYCLOAK_GATEWAY_CLIENT_SECRET`.

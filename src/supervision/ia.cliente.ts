@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
-import { cargador } from '../comun/dataloaders/dataloaders.js';
+import { cadaUno, cargador } from '../comun/dataloaders/dataloaders.js';
 import { ClienteServicio } from '../comun/http/cliente-servicio.js';
 import type {
   ConsumoAtipico,
@@ -62,6 +62,100 @@ export interface PedidoReporteRest {
 /** Respuesta de `POST /consultas-reporte` (503); la `receta` no se expone por GraphQL. */
 export interface ConsultaReporteRest extends ConsultaReporte {
   receta: unknown;
+}
+
+/** Ejecución corta de un agente (`GET /ejecuciones`, `POST /agentes/{agente}/ejecuciones`, 502). */
+export interface EjecucionCortaRest {
+  id: string;
+  agente: string;
+  origen: string;
+  estado: string;
+  iniciadaEn: string;
+  terminadaEn: string | null;
+  cantidadHallazgos: number;
+}
+
+/** `GET /agentes` (502). */
+export interface AgenteRest {
+  agente: string;
+  nombre: string;
+  mision: string;
+  herramientas: string[];
+  ultimaEjecucion: EjecucionCortaRest | null;
+  sugerenciasPendientes: number;
+}
+
+/** Hallazgo tal como lo manda IA. `GET /hallazgos` trae además `ejecucionId`, `agente` y `detectadoEn`. */
+export interface HallazgoRest {
+  ejecucionId?: string;
+  agente?: string;
+  obraId: string;
+  obraNombre: string;
+  tipo: string;
+  severidad: string;
+  situacion: string;
+  causaProbable: string;
+  evidencia: { herramienta: string; dato: string }[];
+  detectadoEn?: string;
+}
+
+/** `GET /ejecuciones/{id}` (502). */
+export interface EjecucionAgenteRest {
+  id: string;
+  agente: string;
+  origen: string;
+  estado: string;
+  /** Id de Keycloak; null si es programada. */
+  solicitadaPor: string | null;
+  iniciadaEn: string;
+  terminadaEn: string | null;
+  proveedorLlm: string;
+  modelo: string;
+  resumen: string | null;
+  error: { codigo: string; mensaje: string } | null;
+  pasos: {
+    numero: number;
+    servidor: string;
+    herramienta: string;
+    argumentos: string;
+    resultadoResumen: string;
+    en: string;
+    duracionMs: number;
+    error: string | null;
+  }[];
+  hallazgos: HallazgoRest[];
+}
+
+/** `GET /sugerencias` y respuesta de aprobar y rechazar (502). */
+export interface SugerenciaRest {
+  id: string;
+  ejecucionId: string;
+  agente: string;
+  obraId: string;
+  obraNombre: string;
+  accion: string;
+  accionTexto: string;
+  descripcion: string;
+  estado: string;
+  creadaEn: string;
+  /** Id de Keycloak; null mientras está PENDIENTE. */
+  decididaPor: string | null;
+  decididaEn: string | null;
+  comentario: string | null;
+}
+
+/** Ruta con los parámetros que vienen (sin los null ni undefined). */
+function conParametros(
+  ruta: string,
+  parametros: Record<string, string | number | null | undefined>,
+): string {
+  const consulta = new URLSearchParams();
+  for (const [nombre, valor] of Object.entries(parametros)) {
+    if (valor !== null && valor !== undefined)
+      consulta.set(nombre, String(valor));
+  }
+  const texto = consulta.toString();
+  return texto ? `${ruta}?${texto}` : ruta;
 }
 
 /** `GET /modelos/riesgo-retraso` (402). */
@@ -302,6 +396,158 @@ export class IaCliente {
       pedido,
       contexto,
       { tiempoMaximoMs: TIEMPO_MAXIMO_CONSULTA_REPORTE_MS },
+    );
+  }
+
+  /** `GET /agentes` (502): para residente IA no manda CONTROL_COBROS y cuenta solo las sugerencias de sus obras. */
+  agentes(contexto: ContextoGraphql): Promise<AgenteRest[]> {
+    return this.cliente.consultar<AgenteRest[]>('ia', '/agentes', contexto);
+  }
+
+  /** `POST /agentes/{agente}/ejecuciones` (502), sin cuerpo ni reintento: 400 AGENTE_INVALIDO, 409 EJECUCION_EN_CURSO. */
+  ejecutarAgente(
+    agente: string,
+    contexto: ContextoGraphql,
+  ): Promise<EjecucionCortaRest> {
+    return this.cliente.enviar<EjecucionCortaRest>(
+      'ia',
+      'POST',
+      `/agentes/${encodeURIComponent(agente)}/ejecuciones`,
+      undefined,
+      contexto,
+    );
+  }
+
+  /** `GET /ejecuciones?agente=&estado=&limite=` (502): más recientes primero (IA valida `limite` 1 a 50). */
+  ejecuciones(
+    filtros: {
+      agente?: string | null;
+      estado?: string | null;
+      limite?: number | null;
+    },
+    contexto: ContextoGraphql,
+  ): Promise<EjecucionCortaRest[]> {
+    return this.cliente.consultar<EjecucionCortaRest[]>(
+      'ia',
+      conParametros('/ejecuciones', filtros),
+      contexto,
+    );
+  }
+
+  /** `GET /ejecuciones/{id}` (502); 404 EJECUCION_NO_ENCONTRADA. */
+  ejecucion(
+    id: string,
+    contexto: ContextoGraphql,
+  ): Promise<EjecucionAgenteRest> {
+    return this.cliente.consultar<EjecucionAgenteRest>(
+      'ia',
+      `/ejecuciones/${encodeURIComponent(id)}`,
+      contexto,
+    );
+  }
+
+  /** `GET /hallazgos?agente=&obraId=` (502): los vigentes (última ejecución TERMINADA de cada agente). */
+  hallazgos(
+    filtros: { agente?: string | null; obraId?: string | null },
+    contexto: ContextoGraphql,
+  ): Promise<HallazgoRest[]> {
+    return this.cliente.consultar<HallazgoRest[]>(
+      'ia',
+      conParametros('/hallazgos', filtros),
+      contexto,
+    );
+  }
+
+  /** `GET /sugerencias?estado=&agente=&obraId=&limite=` (502; IA valida `limite` 1 a 100). */
+  sugerencias(
+    filtros: {
+      estado?: string | null;
+      agente?: string | null;
+      obraId?: string | null;
+      limite?: number | null;
+    },
+    contexto: ContextoGraphql,
+  ): Promise<SugerenciaRest[]> {
+    return this.cliente.consultar<SugerenciaRest[]>(
+      'ia',
+      conParametros('/sugerencias', filtros),
+      contexto,
+    );
+  }
+
+  /**
+   * Hallazgos vigentes de una obra con el DataLoader de la petición (502: `Obra.hallazgos`): la misma obra con el mismo
+   * filtro se pide una sola vez; cada obra, por separado (IA no tiene consulta por lote), y si una falla, solo esa obra
+   * recibe el error.
+   */
+  hallazgosDeObra(
+    obraId: string,
+    agente: string | null | undefined,
+    contexto: ContextoGraphql,
+  ): Promise<HallazgoRest[]> {
+    return cargador<
+      { obraId: string; agente?: string | null },
+      HallazgoRest[],
+      string
+    >(
+      contexto,
+      'hallazgosObraIa',
+      cadaUno((filtros) => this.hallazgos(filtros, contexto)),
+      { cacheKeyFn: (clave) => `${clave.obraId}:${clave.agente ?? ''}` },
+    ).load({ obraId, agente });
+  }
+
+  /** Sugerencias de una obra con el DataLoader de la petición (502: `Obra.sugerencias`), igual que `hallazgosDeObra`. */
+  sugerenciasDeObra(
+    obraId: string,
+    estado: string | null | undefined,
+    contexto: ContextoGraphql,
+  ): Promise<SugerenciaRest[]> {
+    return cargador<
+      { obraId: string; estado?: string | null },
+      SugerenciaRest[],
+      string
+    >(
+      contexto,
+      'sugerenciasObraIa',
+      cadaUno((filtros) => this.sugerencias(filtros, contexto)),
+      { cacheKeyFn: (clave) => `${clave.obraId}:${clave.estado ?? ''}` },
+    ).load({ obraId, estado });
+  }
+
+  /**
+   * `POST /sugerencias/{id}/aprobar` `{ comentario }` (502; `comentario` solo si viene), sin reintento: 404
+   * SUGERENCIA_NO_ENCONTRADA, 409 SUGERENCIA_YA_DECIDIDA, 422 COMENTARIO_INVALIDO (con `errores[]`).
+   */
+  aprobarSugerencia(
+    id: string,
+    comentario: string | null | undefined,
+    contexto: ContextoGraphql,
+  ): Promise<SugerenciaRest> {
+    return this.cliente.enviar<SugerenciaRest>(
+      'ia',
+      'POST',
+      `/sugerencias/${encodeURIComponent(id)}/aprobar`,
+      comentario === null || comentario === undefined ? {} : { comentario },
+      contexto,
+    );
+  }
+
+  /**
+   * `POST /sugerencias/{id}/rechazar` `{ motivo }` (502), sin reintento: 404 SUGERENCIA_NO_ENCONTRADA, 409
+   * SUGERENCIA_YA_DECIDIDA, 422 MOTIVO_INVALIDO.
+   */
+  rechazarSugerencia(
+    id: string,
+    motivo: string,
+    contexto: ContextoGraphql,
+  ): Promise<SugerenciaRest> {
+    return this.cliente.enviar<SugerenciaRest>(
+      'ia',
+      'POST',
+      `/sugerencias/${encodeURIComponent(id)}/rechazar`,
+      { motivo },
+      contexto,
     );
   }
 
