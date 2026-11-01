@@ -139,4 +139,111 @@ describe('IaCliente', () => {
     );
     expect(servicio.consultar).not.toHaveBeenCalled();
   });
+
+  describe('502: agentes', () => {
+    it('agentes pide GET /agentes', async () => {
+      const { servicio, ia } = crear();
+      await ia.agentes(contexto);
+      expect(servicio.consultar).toHaveBeenCalledWith(
+        'ia',
+        '/agentes',
+        contexto,
+      );
+    });
+
+    it('ejecutarAgente envía POST /agentes/{agente}/ejecuciones sin cuerpo (sin reintento: enviar)', async () => {
+      const { servicio, ia } = crear();
+      await ia.ejecutarAgente('CONTROL_COBROS', contexto);
+      expect(servicio.enviar).toHaveBeenCalledWith(
+        'ia',
+        'POST',
+        '/agentes/CONTROL_COBROS/ejecuciones',
+        undefined,
+        contexto,
+      );
+      expect(servicio.consultar).not.toHaveBeenCalled();
+    });
+
+    it('ejecuciones, hallazgos y sugerencias envían solo los filtros que vienen', async () => {
+      const { servicio, ia } = crear();
+      await ia.ejecuciones({}, contexto);
+      expect(servicio.consultar).toHaveBeenLastCalledWith(
+        'ia',
+        '/ejecuciones',
+        contexto,
+      );
+      await ia.ejecuciones(
+        { agente: 'CONTROL_MATERIALES', estado: null, limite: 5 },
+        contexto,
+      );
+      expect(servicio.consultar).toHaveBeenLastCalledWith(
+        'ia',
+        '/ejecuciones?agente=CONTROL_MATERIALES&limite=5',
+        contexto,
+      );
+      await ia.hallazgos({ obraId: 'a/b', agente: undefined }, contexto);
+      expect(servicio.consultar).toHaveBeenLastCalledWith(
+        'ia',
+        '/hallazgos?obraId=a%2Fb',
+        contexto,
+      );
+      await ia.sugerencias(
+        {
+          estado: 'PENDIENTE',
+          agente: 'SEGUIMIENTO_OBRAS',
+          obraId: 'o1',
+          limite: 10,
+        },
+        contexto,
+      );
+      expect(servicio.consultar).toHaveBeenLastCalledWith(
+        'ia',
+        '/sugerencias?estado=PENDIENTE&agente=SEGUIMIENTO_OBRAS&obraId=o1&limite=10',
+        contexto,
+      );
+    });
+
+    it('ejecucion pide GET /ejecuciones/{id} con el id escapado', async () => {
+      const { servicio, ia } = crear();
+      await ia.ejecucion('a/b', contexto);
+      expect(servicio.consultar).toHaveBeenCalledWith(
+        'ia',
+        '/ejecuciones/a%2Fb',
+        contexto,
+      );
+    });
+
+    it('aprobarSugerencia envía el comentario solo si viene; rechazarSugerencia envía el motivo (sin reintento)', async () => {
+      const { servicio, ia } = crear();
+      await ia.aprobarSugerencia('s1', undefined, contexto);
+      expect(servicio.enviar).toHaveBeenLastCalledWith(
+        'ia',
+        'POST',
+        '/sugerencias/s1/aprobar',
+        {},
+        contexto,
+      );
+      await ia.aprobarSugerencia('s1', 'Se programó', contexto);
+      expect(servicio.enviar).toHaveBeenLastCalledWith(
+        'ia',
+        'POST',
+        '/sugerencias/s1/aprobar',
+        { comentario: 'Se programó' },
+        contexto,
+      );
+      await ia.rechazarSugerencia(
+        'a/b',
+        'No corresponde a esta obra',
+        contexto,
+      );
+      expect(servicio.enviar).toHaveBeenLastCalledWith(
+        'ia',
+        'POST',
+        '/sugerencias/a%2Fb/rechazar',
+        { motivo: 'No corresponde a esta obra' },
+        contexto,
+      );
+      expect(servicio.consultar).not.toHaveBeenCalled();
+    });
+  });
 });
