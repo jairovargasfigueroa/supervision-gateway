@@ -25,6 +25,6 @@ describe('listasInternasNoNulas', () => {
     ).toThrow('No existe Reporte.nada');
     expect(() =>
       listasInternasNoNulas([['Reporte', 'filas']])(esquema()),
-    ).toThrow('no es una lista de listas');
+    ).toThrow('no es [[T]]!');
   });
 });

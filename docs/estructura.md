@@ -55,6 +55,7 @@ test/
   planillas.e2e-spec.ts  007: Obra.planillas, planilla(id) y mutaciones contra un Obras simulado; 008: Planilla.cobro por rol y con Finanzas caído
   riesgo-retraso.e2e-spec.ts  402: tablero, obra y modelo contra Obras e IA simulados (lotes de 100, SIN_DATOS, IA caído o lento)
   consumos-atipicos.e2e-spec.ts  403: Obra.consumosAtipicos, tablero y revisarConsumoAtipico contra Obras, Materiales, Keycloak e IA simulados
+  reportes.e2e-spec.ts   503: catalogoReportes, consultasReporte y consultarReporte contra Keycloak e IA simulados (directorio de clientes, Keycloak caído, texto y atajo a la vez, errores de IA, IA lenta, [[String]!]!)
   tablero.e2e-spec.ts    009: tablero contra Obras, Materiales y Finanzas simulados (lote a Materiales en una sola llamada, cada servicio caído o lento)
   consultar-obra.e2e-spec.ts  006: obras y obra(id) completos contra Obras, Materiales, Finanzas y Keycloak simulados (DataLoader, respuesta parcial, servicio lento)
   soporte/               tokens-prueba.ts (claves RSA locales en lugar del JWKS de Keycloak), servicio-simulado.ts (servidor REST de prueba con demora configurable)
