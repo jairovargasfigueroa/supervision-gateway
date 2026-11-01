@@ -4,4 +4,4 @@ Requisitos y diseño: `docs/specs/301-deteccion-epp/` de la carpeta que agrupa l
 
 Marca cada tarea al terminarla (con sus pruebas y su commit).
 
-- [ ] Tipo `DeteccionEpp` y campo `Foto.deteccion` mapeado desde Obras; pruebas con detección y con `null`
+- [x] Tipo `DeteccionEpp` y campo `Foto.deteccion` mapeado desde Obras; pruebas con detección y con `null`
