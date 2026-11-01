@@ -199,6 +199,32 @@ describe('KeycloakAdminCliente', () => {
     });
   });
 
+  it('503: usuariosConRolEnCache guarda los usuarios del rol 5 minutos y no guarda los errores', async () => {
+    reloj = 2_000_000;
+    responderAdmin = () => ({ estado: 500 });
+    const keycloak = cliente();
+    await errorDe(keycloak.usuariosConRolEnCache('cliente', 'r'));
+    responderAdmin = () => ({
+      estado: 200,
+      cuerpo: [{ id: 'c1', firstName: 'Constructora', lastName: 'Andina' }],
+    });
+    llamadas = [];
+    await expect(
+      keycloak.usuariosConRolEnCache('cliente', 'r'),
+    ).resolves.toEqual([
+      { id: 'c1', nombre: 'Constructora Andina', correo: null },
+    ]);
+    expect(llamadas[0].ruta).toBe(
+      '/admin/realms/supervision/roles/cliente/users?first=0&max=1000',
+    );
+    reloj += 5 * 60_000 - 1;
+    await keycloak.usuariosConRolEnCache('cliente', 'r');
+    expect(llamadas).toHaveLength(1);
+    reloj += 1;
+    await keycloak.usuariosConRolEnCache('cliente', 'r');
+    expect(llamadas).toHaveLength(2);
+  });
+
   it('si Keycloak tarda más del tiempo máximo responde SERVICIO_NO_DISPONIBLE (keycloak)', async () => {
     responderAdmin = () => ({ estado: 200, cuerpo: [], demoraMs: 500 });
     const error = await errorDe(

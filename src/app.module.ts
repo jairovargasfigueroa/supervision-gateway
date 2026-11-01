@@ -7,6 +7,7 @@ import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin
 import type { Request, Response } from 'express';
 import { Limitador } from './comun/auth/limitador.js';
 import { limitarConsultas } from './comun/graphql/limites.js';
+import { listasInternasNoNulas } from './comun/graphql/listas-anidadas.js';
 import { JwtGuard } from './comun/auth/jwt.guard.js';
 import { RolesGuard } from './comun/auth/roles.guard.js';
 import {
@@ -33,6 +34,8 @@ const enProduccion = process.env.NODE_ENV === 'production';
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       autoSchemaFile: true,
+      // 503: `[[String]!]!` del contrato (ConsultaReporte.filas), que code-first no puede declarar
+      transformSchema: listasInternasNoNulas(),
       // La petición (con su X-Request-Id, usuario y token) llega a guards y resolvers
       context: ({ req, res }: { req: Request; res: Response }) => ({
         req,
