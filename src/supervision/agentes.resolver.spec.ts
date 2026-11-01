@@ -30,6 +30,13 @@ function crear() {
     }),
     hallazgos: vi.fn().mockResolvedValue([]),
     sugerencias: vi.fn().mockResolvedValue([]),
+    ejecutarAgente: vi.fn().mockResolvedValue({ id: 'e2', estado: 'EN_CURSO' }),
+    aprobarSugerencia: vi
+      .fn()
+      .mockResolvedValue({ id: 's1', estado: 'APROBADA' }),
+    rechazarSugerencia: vi
+      .fn()
+      .mockResolvedValue({ id: 's1', estado: 'RECHAZADA' }),
   };
   const keycloak = {
     usuarioEnPeticion: vi
@@ -44,6 +51,7 @@ function crear() {
       keycloak as unknown as KeycloakAdminCliente,
     ),
     sugerencia: new SugerenciaResolver(
+      ia as unknown as IaCliente,
       keycloak as unknown as KeycloakAdminCliente,
     ),
   };
@@ -130,5 +138,41 @@ describe('solicitadaPor y decididaPor', () => {
       sugerencia.decididaPor({ decididaPor: null } as Sugerencia, contexto),
     ).resolves.toBeNull();
     expect(keycloak.usuarioEnPeticion).not.toHaveBeenCalled();
+  });
+});
+
+describe('mutaciones de agentes', () => {
+  it('ejecutarAgente pide la ejecución a IA', async () => {
+    const { ia, agentes } = crear();
+    await expect(
+      agentes.ejecutarAgente(contexto, Agente.CONTROL_COBROS),
+    ).resolves.toEqual({ id: 'e2', estado: 'EN_CURSO' });
+    expect(ia.ejecutarAgente).toHaveBeenCalledWith('CONTROL_COBROS', contexto);
+  });
+
+  it('aprobarSugerencia y rechazarSugerencia pasan el comentario y el motivo', async () => {
+    const { ia, sugerencia } = crear();
+    await sugerencia.aprobarSugerencia(contexto, 's1');
+    expect(ia.aprobarSugerencia).toHaveBeenLastCalledWith(
+      's1',
+      undefined,
+      contexto,
+    );
+    await sugerencia.aprobarSugerencia(contexto, 's1', 'Visita el lunes');
+    expect(ia.aprobarSugerencia).toHaveBeenLastCalledWith(
+      's1',
+      'Visita el lunes',
+      contexto,
+    );
+    await sugerencia.rechazarSugerencia(
+      contexto,
+      's1',
+      'El stock ya se repuso ayer',
+    );
+    expect(ia.rechazarSugerencia).toHaveBeenCalledWith(
+      's1',
+      'El stock ya se repuso ayer',
+      contexto,
+    );
   });
 });

@@ -3,6 +3,7 @@ import {
   Context,
   ID,
   Int,
+  Mutation,
   Parent,
   Query,
   ResolveField,
@@ -86,6 +87,22 @@ export class AgentesResolver {
     )) as unknown as Hallazgo[];
   }
 
+  /**
+   * «Ejecutar ahora» (`POST /agentes/{agente}/ejecuciones`): devuelve la ejecución EN_CURSO, MANUAL. Sin reintento; los
+   * errores llegan con el codigo de IA (409 EJECUCION_EN_CURSO, 400 AGENTE_INVALIDO).
+   */
+  @Roles('admin', 'gerente')
+  @Mutation(() => EjecucionCorta)
+  async ejecutarAgente(
+    @Context() contexto: ContextoGraphql,
+    @Args('agente', { type: () => Agente }) agente: Agente,
+  ): Promise<EjecucionCorta> {
+    return (await this.iaCliente.ejecutarAgente(
+      agente,
+      contexto,
+    )) as unknown as EjecucionCorta;
+  }
+
   /** Sugerencias (`GET /sugerencias`); IA valida `limite` 1 a 100 y por defecto da 50. */
   @Roles('admin', 'gerente', 'residente')
   @Query(() => [Sugerencia])
@@ -161,10 +178,53 @@ export class EjecucionAgenteResolver {
   }
 }
 
-/** 502: quién decidió la sugerencia (Keycloak, caché de 5 min y DataLoader de la petición); null si está PENDIENTE. */
+/**
+ * 502: aprobar y rechazar una sugerencia y quién la decidió (Keycloak, caché de 5 min y DataLoader de la petición; null
+ * si está PENDIENTE).
+ */
 @Resolver(() => Sugerencia)
 export class SugerenciaResolver {
-  constructor(private readonly keycloak: KeycloakAdminCliente) {}
+  constructor(
+    private readonly iaCliente: IaCliente,
+    private readonly keycloak: KeycloakAdminCliente,
+  ) {}
+
+  /**
+   * Aprueba la sugerencia (solo registra la decisión; no se ejecuta nada en otro servicio). Sin reintento; errores de IA:
+   * 404 SUGERENCIA_NO_ENCONTRADA (también si no puede verla), 409 SUGERENCIA_YA_DECIDIDA, 422 COMENTARIO_INVALIDO.
+   */
+  @Roles('admin', 'gerente', 'residente')
+  @Mutation(() => Sugerencia)
+  async aprobarSugerencia(
+    @Context() contexto: ContextoGraphql,
+    @Args('id', { type: () => ID }) id: string,
+    @Args('comentario', { type: () => String, nullable: true })
+    comentario?: string | null,
+  ): Promise<Sugerencia> {
+    return (await this.iaCliente.aprobarSugerencia(
+      id,
+      comentario,
+      contexto,
+    )) as unknown as Sugerencia;
+  }
+
+  /**
+   * Rechaza la sugerencia con un motivo (IA valida 10 a 500 caracteres: 422 MOTIVO_INVALIDO). Sin reintento; mismos
+   * errores que aprobar.
+   */
+  @Roles('admin', 'gerente', 'residente')
+  @Mutation(() => Sugerencia)
+  async rechazarSugerencia(
+    @Context() contexto: ContextoGraphql,
+    @Args('id', { type: () => ID }) id: string,
+    @Args('motivo') motivo: string,
+  ): Promise<Sugerencia> {
+    return (await this.iaCliente.rechazarSugerencia(
+      id,
+      motivo,
+      contexto,
+    )) as unknown as Sugerencia;
+  }
 
   @ResolveField(() => Usuario, { nullable: true })
   decididaPor(

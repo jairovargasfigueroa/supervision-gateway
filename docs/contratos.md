@@ -256,6 +256,9 @@ type Mutation {
   presentarPlanilla(id: ID!, version: Int!): Planilla!                       # 007 · residente asignado
   revisarConsumoAtipico(id: ID!, estado: EstadoRevision!, comentario: String): ConsumoAtipico!   # 403 · admin, residente (asignado: lo valida IA)
   consultarReporte(texto: String, atajo: AtajoReporte): ConsultaReporte!     # 503 · admin, gerente (IA, 60 s)
+  ejecutarAgente(agente: Agente!): EjecucionCorta!                           # 502 · admin, gerente
+  aprobarSugerencia(id: ID!, comentario: String): Sugerencia!                # 502 · admin, gerente, residente (sus obras, sin CONTROL_COBROS)
+  rechazarSugerencia(id: ID!, motivo: String!): Sugerencia!                  # 502 · admin, gerente, residente (sus obras, sin CONTROL_COBROS)
 }
 ```
 
@@ -309,6 +312,7 @@ type Mutation {
 - `EjecucionAgente.hallazgos`: `GET /ejecuciones/{id}` los manda sin `ejecucionId`, `agente` ni `detectadoEn`; el gateway los toma de la ejecución (`detectadoEn` = `terminadaEn`).
 - `EjecucionAgente.solicitadaPor` y `Sugerencia.decididaPor`: Keycloak con la caché de 5 minutos y el DataLoader de la petición (006); `null` sin llamar a Keycloak si IA manda `null` (programada o pendiente); si Keycloak falla, solo ese campo vuelve `null`.
 - `Obra.hallazgos(agente)` → `GET /hallazgos?obraId=&agente=` y `Obra.sugerencias(estado)` → `GET /sugerencias?obraId=&estado=` (una llamada por obra y filtro, con el DataLoader de la petición). Si IA no responde, solo ese campo vuelve `null` con `SERVICIO_NO_DISPONIBLE` y el resto de la obra llega.
+- `ejecutarAgente` → `POST /agentes/{agente}/ejecuciones` (sin cuerpo); `aprobarSugerencia` → `POST /sugerencias/{id}/aprobar` `{ comentario }` (`comentario` solo si viene); `rechazarSugerencia` → `POST /sugerencias/{id}/rechazar` `{ motivo }`. Sin reintento. Los errores de IA llegan en `extensions.codigo` con `extensions.servicio = "ia"` y `data: null`: `AGENTE_INVALIDO` (400), `EJECUCION_EN_CURSO` (409), `SUGERENCIA_NO_ENCONTRADA` (404, también si no puede verla), `SUGERENCIA_YA_DECIDIDA` (409), `COMENTARIO_INVALIDO` (422, con `extensions.errores[]`) y `MOTIVO_INVALIDO` (422). Aprobar solo registra la decisión.
 - `ejecucionAgente(id)` inexistente: `null` con `EJECUCION_NO_ENCONTRADA`. Si IA no responde: `SERVICIO_NO_DISPONIBLE` con `extensions.servicio = "ia"`.
 
 ## Consume (REST)
