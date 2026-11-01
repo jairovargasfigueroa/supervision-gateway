@@ -3,6 +3,7 @@ import { MaterialesModule } from '../materiales/materiales.module.js';
 import {
   AgentesResolver,
   EjecucionAgenteResolver,
+  ObraAgentesResolver,
   SugerenciaResolver,
 } from './agentes.resolver.js';
 import { ObrasModule } from '../obras/obras.module.js';
@@ -39,6 +40,7 @@ import { ModeloRiesgoResolver, ObraRiesgoResolver } from './riesgo.resolver.js';
     AgentesResolver,
     EjecucionAgenteResolver,
     SugerenciaResolver,
+    ObraAgentesResolver,
   ],
   exports: [IaCliente],
 })

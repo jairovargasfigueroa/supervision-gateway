@@ -7,6 +7,6 @@ Marca cada tarea al terminarla (con sus pruebas y su commit).
 - [x] Agregar los métodos de agentes al cliente `ia.cliente.ts` de la 402 (`IA_URL`, 3 s, reintento solo en consultas)
 - [x] Enums y tipos de agentes, ejecuciones, hallazgos y sugerencias (code-first), incluidos `EjecucionAgente.proveedorLlm` y `PasoEjecucion.servidor`
 - [x] Consultas `agentes`, `ejecucionesAgente`, `ejecucionAgente`, `hallazgos`, `sugerencias`; nombres de `solicitadaPor` y `decididaPor` con la caché de usuarios
-- [ ] Campos `Obra.hallazgos` y `Obra.sugerencias` con DataLoader y respuesta parcial
+- [x] Campos `Obra.hallazgos` y `Obra.sugerencias` con DataLoader y respuesta parcial
 - [ ] Mutaciones `ejecutarAgente`, `aprobarSugerencia`, `rechazarSugerencia` con `extensions.codigo` y `extensions.servicio = "ia"`
 - [ ] Pruebas con IA simulada (incluida IA caída)

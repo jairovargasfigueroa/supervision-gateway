@@ -12,6 +12,8 @@ import type { ContextoGraphql } from '../comun/auth/contexto.js';
 import { Roles } from '../comun/auth/roles.decorator.js';
 import { KeycloakAdminCliente } from '../comun/keycloak/keycloak-admin.cliente.js';
 import { Usuario } from '../comun/keycloak/usuario.modelo.js';
+import { Obra } from '../obras/modelos/obra.modelo.js';
+import type { ObraRest } from '../obras/obras.cliente.js';
 import { ejecucionDesdeRest } from './agentes.js';
 import { IaCliente } from './ia.cliente.js';
 import {
@@ -100,6 +102,44 @@ export class AgentesResolver {
   ): Promise<Sugerencia[]> {
     return (await this.iaCliente.sugerencias(
       { estado, agente, obraId, limite },
+      contexto,
+    )) as unknown as Sugerencia[];
+  }
+}
+
+/**
+ * 502: hallazgos vigentes y sugerencias de la obra (pestaña «Agentes» de Obras y panel de Materiales), con el DataLoader
+ * de la petición. Si IA no responde, solo estos campos vuelven null con SERVICIO_NO_DISPONIBLE y el resto de la obra
+ * llega.
+ */
+@Resolver(() => Obra)
+export class ObraAgentesResolver {
+  constructor(private readonly iaCliente: IaCliente) {}
+
+  @ResolveField(() => [Hallazgo], { nullable: true })
+  async hallazgos(
+    @Parent() obra: ObraRest,
+    @Context() contexto: ContextoGraphql,
+    @Args('agente', { type: () => Agente, nullable: true })
+    agente?: Agente | null,
+  ): Promise<Hallazgo[]> {
+    return (await this.iaCliente.hallazgosDeObra(
+      obra.id,
+      agente,
+      contexto,
+    )) as unknown as Hallazgo[];
+  }
+
+  @ResolveField(() => [Sugerencia], { nullable: true })
+  async sugerencias(
+    @Parent() obra: ObraRest,
+    @Context() contexto: ContextoGraphql,
+    @Args('estado', { type: () => EstadoSugerencia, nullable: true })
+    estado?: EstadoSugerencia | null,
+  ): Promise<Sugerencia[]> {
+    return (await this.iaCliente.sugerenciasDeObra(
+      obra.id,
+      estado,
       contexto,
     )) as unknown as Sugerencia[];
   }

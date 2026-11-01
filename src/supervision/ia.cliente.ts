@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
-import { cargador } from '../comun/dataloaders/dataloaders.js';
+import { cadaUno, cargador } from '../comun/dataloaders/dataloaders.js';
 import { ClienteServicio } from '../comun/http/cliente-servicio.js';
 import type {
   ConsumoAtipico,
@@ -473,6 +473,46 @@ export class IaCliente {
       conParametros('/sugerencias', filtros),
       contexto,
     );
+  }
+
+  /**
+   * Hallazgos vigentes de una obra con el DataLoader de la petición (502: `Obra.hallazgos`): la misma obra con el mismo
+   * filtro se pide una sola vez; cada obra, por separado (IA no tiene consulta por lote), y si una falla, solo esa obra
+   * recibe el error.
+   */
+  hallazgosDeObra(
+    obraId: string,
+    agente: string | null | undefined,
+    contexto: ContextoGraphql,
+  ): Promise<HallazgoRest[]> {
+    return cargador<
+      { obraId: string; agente?: string | null },
+      HallazgoRest[],
+      string
+    >(
+      contexto,
+      'hallazgosObraIa',
+      cadaUno((filtros) => this.hallazgos(filtros, contexto)),
+      { cacheKeyFn: (clave) => `${clave.obraId}:${clave.agente ?? ''}` },
+    ).load({ obraId, agente });
+  }
+
+  /** Sugerencias de una obra con el DataLoader de la petición (502: `Obra.sugerencias`), igual que `hallazgosDeObra`. */
+  sugerenciasDeObra(
+    obraId: string,
+    estado: string | null | undefined,
+    contexto: ContextoGraphql,
+  ): Promise<SugerenciaRest[]> {
+    return cargador<
+      { obraId: string; estado?: string | null },
+      SugerenciaRest[],
+      string
+    >(
+      contexto,
+      'sugerenciasObraIa',
+      cadaUno((filtros) => this.sugerencias(filtros, contexto)),
+      { cacheKeyFn: (clave) => `${clave.obraId}:${clave.estado ?? ''}` },
+    ).load({ obraId, estado });
   }
 
   /**

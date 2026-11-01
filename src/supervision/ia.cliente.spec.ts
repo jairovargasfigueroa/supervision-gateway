@@ -246,4 +246,47 @@ describe('IaCliente', () => {
       expect(servicio.consultar).not.toHaveBeenCalled();
     });
   });
+
+  describe('502: Obra.hallazgos y Obra.sugerencias (DataLoader de la petición)', () => {
+    const peticion = () =>
+      ({
+        req: { requestId: 'req-2', token: 't' },
+      }) as unknown as ContextoGraphql;
+
+    it('la misma obra con el mismo filtro se pide una sola vez; con otro filtro, aparte', async () => {
+      const { servicio, ia } = crear();
+      const contextoPeticion = peticion();
+      await Promise.all([
+        ia.hallazgosDeObra('o1', 'CONTROL_COBROS', contextoPeticion),
+        ia.hallazgosDeObra('o1', 'CONTROL_COBROS', contextoPeticion),
+        ia.hallazgosDeObra('o1', undefined, contextoPeticion),
+        ia.sugerenciasDeObra('o1', 'PENDIENTE', contextoPeticion),
+        ia.sugerenciasDeObra('o2', 'PENDIENTE', contextoPeticion),
+      ]);
+      expect(
+        servicio.consultar.mock.calls.map(([, ruta]) => ruta).sort(),
+      ).toEqual([
+        '/hallazgos?obraId=o1',
+        '/hallazgos?obraId=o1&agente=CONTROL_COBROS',
+        '/sugerencias?obraId=o1&estado=PENDIENTE',
+        '/sugerencias?obraId=o2&estado=PENDIENTE',
+      ]);
+    });
+
+    it('si una obra falla, solo esa recibe el error', async () => {
+      const { servicio, ia } = crear();
+      servicio.consultar.mockImplementation((_s: string, ruta: string) =>
+        ruta.includes('o2')
+          ? Promise.reject(new Error('IA no responde'))
+          : Promise.resolve([]),
+      );
+      const contextoPeticion = peticion();
+      const [uno, dos] = await Promise.allSettled([
+        ia.sugerenciasDeObra('o1', null, contextoPeticion),
+        ia.sugerenciasDeObra('o2', null, contextoPeticion),
+      ]);
+      expect(uno).toEqual({ status: 'fulfilled', value: [] });
+      expect(dos.status).toBe('rejected');
+    });
+  });
 });

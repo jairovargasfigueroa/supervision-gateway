@@ -39,6 +39,8 @@ type Obra {
   riesgoRetraso: RiesgoRetraso      # 402 · IA; null con SERVICIO_NO_DISPONIBLE si no responde
   historialRiesgo(limite: Int = 30): [PuntoRiesgo!]   # 402 · IA (misma llamada que riesgoRetraso)
   consumosAtipicos(estado: EstadoRevision): [ConsumoAtipico!]   # 403 · IA; null con SERVICIO_NO_DISPONIBLE si no responde
+  hallazgos(agente: Agente): [Hallazgo!]                         # 502 · IA; null con SERVICIO_NO_DISPONIBLE si no responde
+  sugerencias(estado: EstadoSugerencia): [Sugerencia!]           # 502 · IA; null con SERVICIO_NO_DISPONIBLE si no responde
 }
 type ContratoObra { contratoId: ID monto: Float! plazoDias: Int! anticipoPct: Float! retencionPct: Float! }
 type Partida {
@@ -306,6 +308,7 @@ type Mutation {
 - Por rol, el gateway responde `SIN_PERMISO` sin llamar a IA (`ejecucionesAgente` y `ejecucionAgente`: `admin` y `gerente`; el resto también `residente`). Lo fino (residente: sus obras y nunca `CONTROL_COBROS`) lo aplica IA.
 - `EjecucionAgente.hallazgos`: `GET /ejecuciones/{id}` los manda sin `ejecucionId`, `agente` ni `detectadoEn`; el gateway los toma de la ejecución (`detectadoEn` = `terminadaEn`).
 - `EjecucionAgente.solicitadaPor` y `Sugerencia.decididaPor`: Keycloak con la caché de 5 minutos y el DataLoader de la petición (006); `null` sin llamar a Keycloak si IA manda `null` (programada o pendiente); si Keycloak falla, solo ese campo vuelve `null`.
+- `Obra.hallazgos(agente)` → `GET /hallazgos?obraId=&agente=` y `Obra.sugerencias(estado)` → `GET /sugerencias?obraId=&estado=` (una llamada por obra y filtro, con el DataLoader de la petición). Si IA no responde, solo ese campo vuelve `null` con `SERVICIO_NO_DISPONIBLE` y el resto de la obra llega.
 - `ejecucionAgente(id)` inexistente: `null` con `EJECUCION_NO_ENCONTRADA`. Si IA no responde: `SERVICIO_NO_DISPONIBLE` con `extensions.servicio = "ia"`.
 
 ## Consume (REST)
