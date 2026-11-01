@@ -158,6 +158,54 @@ type ConjuntoDisponible {
 type AtajoDisponible { atajo: AtajoReporte! titulo: String! descripcion: String! }
 type CatalogoReportes { conjuntos: [ConjuntoDisponible!]! atajos: [AtajoDisponible!]! }
 
+# 502 · agentes en el ERP (servicio de IA)
+enum Agente { SEGUIMIENTO_OBRAS CONTROL_MATERIALES CONTROL_COBROS }
+enum OrigenEjecucion { PROGRAMADA MANUAL }
+enum EstadoEjecucion { EN_CURSO TERMINADA FALLIDA }
+enum EstadoSugerencia { PENDIENTE APROBADA RECHAZADA }
+enum Severidad { ALTA MEDIA BAJA }
+enum TipoHallazgo {
+  ATRASO RIESGO_DE_ATRASO SIN_REGISTRO_DIARIO PLANILLA_PENDIENTE
+  STOCK_BAJO STOCK_JUSTO CONSUMO_EXCEDIDO SALIDA_SIN_STOCK CONSUMO_ATIPICO
+  COBRO_VENCIDO COBRO_POR_VENCER PLANILLA_SIN_RESPUESTA PLANILLA_OBSERVADA_SIN_CORREGIR
+}
+enum AccionSugerida {
+  REVISAR_PROGRAMA_OBRA PROGRAMAR_VISITA SOLICITAR_INFORME_RESIDENTE COMPLETAR_DIARIO_OBRA
+  VERIFICAR_INVENTARIO REVISAR_CONSUMO_PARTIDA EVALUAR_REPOSICION REVISAR_SALIDAS_SIN_STOCK REVISAR_CONSUMO_ATIPICO
+  CONTACTAR_CLIENTE_COBRO RECORDAR_REVISION_PLANILLA CORREGIR_PLANILLA_OBSERVADA REVISAR_SALDO_CONTRATO
+}
+type AgenteInfo {
+  agente: Agente! nombre: String! mision: String! herramientas: [String!]!
+  ultimaEjecucion: EjecucionCorta  sugerenciasPendientes: Int!
+}
+type EjecucionCorta {
+  id: ID! agente: Agente! origen: OrigenEjecucion! estado: EstadoEjecucion!
+  iniciadaEn: String! terminadaEn: String cantidadHallazgos: Int!
+}
+type EjecucionAgente {
+  id: ID! agente: Agente! origen: OrigenEjecucion! estado: EstadoEjecucion!
+  solicitadaPor: Usuario iniciadaEn: String! terminadaEn: String proveedorLlm: String! modelo: String!   # solicitadaPor: Keycloak (caché de 5 min, 006)
+  resumen: String error: ErrorEjecucion
+  pasos: [PasoEjecucion!]! hallazgos: [Hallazgo!]!
+}
+type ErrorEjecucion { codigo: String! mensaje: String! }
+type PasoEjecucion {
+  numero: Int! servidor: String! herramienta: String! argumentos: String! resultadoResumen: String!   # servidor: obras, materiales, finanzas o ia
+  en: String! duracionMs: Int! error: String
+}
+type Hallazgo {
+  ejecucionId: ID! agente: Agente! obraId: ID! obraNombre: String!
+  tipo: TipoHallazgo! severidad: Severidad! situacion: String! causaProbable: String!
+  evidencia: [Evidencia!]! detectadoEn: String!
+}
+type Evidencia { herramienta: String! dato: String! }
+type Sugerencia {
+  id: ID! ejecucionId: ID! agente: Agente! obraId: ID! obraNombre: String!
+  accion: AccionSugerida! accionTexto: String! descripcion: String!
+  estado: EstadoSugerencia! creadaEn: String!
+  decididaPor: Usuario decididaEn: String comentario: String   # decididaPor: Keycloak (caché de 5 min, 006)
+}
+
 input AsignacionesEntrada { residenteId: ID! maestroId: ID! almaceneroId: ID! clienteId: ID! }
 input ContratoEntrada { monto: Float! plazoDias: Int! anticipoPct: Float! retencionPct: Float! firmadoEn: String! }
 input InsumoEntrada { materialId: ID! cantidadPorUnidad: Float! }
