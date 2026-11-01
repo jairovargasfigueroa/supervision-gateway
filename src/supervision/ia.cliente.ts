@@ -6,6 +6,12 @@ import type {
   ConsumoAtipico,
   EstadoRevision,
 } from './modelos/consumo-atipico.modelo.js';
+import type {
+  AtajoReporte,
+  CatalogoReportes,
+  ConsultaReporte,
+  ConsultaReporteCorta,
+} from './modelos/reporte.modelo.js';
 import type { RiesgoRetraso } from './modelos/riesgo.modelo.js';
 import { riesgoDesdePrediccion, sinPrediccion } from './riesgo.js';
 
@@ -37,6 +43,25 @@ export interface PrediccionRest {
 /** `GET /obras/{obraId}/prediccion?historial=` (402): la predicción con su historial (del más antiguo al más reciente). */
 export interface PrediccionObraRest extends PrediccionRest {
   historial: { probabilidad: number; calculadaEn: string }[];
+}
+
+/**
+ * Excepción al tiempo máximo de 3 s (503, decisión del equipo): `POST /consultas-reporte` interpreta el texto con el
+ * modelo de lenguaje, consulta y redacta el resumen; IA corta a los 50 s.
+ */
+export const TIEMPO_MAXIMO_CONSULTA_REPORTE_MS = 60_000;
+
+/** Cuerpo de `POST /consultas-reporte` (503): exactamente uno de `texto` o `atajo`; `directorio` lo agrega el gateway. */
+export interface PedidoReporteRest {
+  texto?: string;
+  atajo?: AtajoReporte;
+  /** Clientes de Keycloak (nombres de la columna y del filtro `cliente`); sin él, IA avisa. */
+  directorio?: { clientes: { id: string; nombre: string }[] };
+}
+
+/** Respuesta de `POST /consultas-reporte` (503); la `receta` no se expone por GraphQL. */
+export interface ConsultaReporteRest extends ConsultaReporte {
+  receta: unknown;
 }
 
 /** `GET /modelos/riesgo-retraso` (402). */
@@ -235,6 +260,48 @@ export class IaCliente {
       `/consumos-atipicos/${encodeURIComponent(id)}/revision`,
       revision,
       contexto,
+    );
+  }
+
+  /** `GET /catalogo-reportes` (503): conjuntos del modo REST y atajos. Solo admin y gerente. */
+  catalogoReportes(contexto: ContextoGraphql): Promise<CatalogoReportes> {
+    return this.cliente.consultar<CatalogoReportes>(
+      'ia',
+      '/catalogo-reportes',
+      contexto,
+    );
+  }
+
+  /** `GET /consultas-reporte?limite=` (503): las del usuario del token, más recientes primero (IA valida 1 a 20). */
+  consultasReporte(
+    limite: number | null | undefined,
+    contexto: ContextoGraphql,
+  ): Promise<ConsultaReporteCorta[]> {
+    return this.cliente.consultar<ConsultaReporteCorta[]>(
+      'ia',
+      limite === null || limite === undefined
+        ? '/consultas-reporte'
+        : `/consultas-reporte?limite=${limite}`,
+      contexto,
+    );
+  }
+
+  /**
+   * `POST /consultas-reporte` (503) con tiempo máximo de 60 s y sin reintento. Los errores llegan con su codigo:
+   * 400 TEXTO_INVALIDO y DATOS_INVALIDOS, 422 INTENCION_NO_RECONOCIDA y RECETA_INVALIDA (con `errores[]`),
+   * 429 DEMASIADAS_CONSULTAS, 503 LLM_NO_DISPONIBLE, REPORTES_NO_DISPONIBLES y SERVICIO_NO_DISPONIBLE, 504 TIEMPO_AGOTADO.
+   */
+  consultarReporte(
+    pedido: PedidoReporteRest,
+    contexto: ContextoGraphql,
+  ): Promise<ConsultaReporteRest> {
+    return this.cliente.enviar<ConsultaReporteRest>(
+      'ia',
+      'POST',
+      '/consultas-reporte',
+      pedido,
+      contexto,
+      { tiempoMaximoMs: TIEMPO_MAXIMO_CONSULTA_REPORTE_MS },
     );
   }
 
