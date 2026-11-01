@@ -23,7 +23,7 @@ src/
     obras.cliente.ts     llamadas REST a Obras (GET /obras, GET /obras/{id}, GET /obras/{id}/material-previsto, GET /obras/{id}/fotos, POST /obras); el módulo exporta ObrasCliente
     obras.resolver.ts    consultas, mutaciones y @ResolveField (asignaciones, fotos)
     fotos.resolver.ts    005: Foto.registradoPor (Keycloak)
-    modelos/             obra-resumen.modelo.ts, obra.modelo.ts (Obra, ContratoObra), partida.modelo.ts (Partida, Insumo), foto.modelo.ts (Foto, FotosPagina), ... (@ObjectType)
+    modelos/             obra-resumen.modelo.ts, obra.modelo.ts (Obra, ContratoObra), partida.modelo.ts (Partida, Insumo), foto.modelo.ts (Foto, FotosPagina; 301: DeteccionEpp y Foto.deteccion), ... (@ObjectType)
     entradas/            registrar-obra.entrada.ts (@InputType)
     obras.module.ts
   materiales/            003: materiales.cliente.ts (GET/POST/PUT /materiales, catálogo completo por petición, GET /obras/{id}/stock, PUT .../minimo; 009: GET /stock/resumen?obraIds= en lote con DataLoader), materiales.resolver.ts (materiales, stockObra, crearMaterial, actualizarMaterial, definirStockMinimo)
@@ -58,7 +58,7 @@ test/
   agentes.e2e-spec.ts    502: agentes, ejecuciones, hallazgos, sugerencias, Obra.hallazgos y Obra.sugerencias y mutaciones contra Obras, Keycloak e IA simulados (DataLoader, IA y Keycloak caídos, errores de IA, sin reintento en mutaciones, SIN_PERMISO)
   reportes.e2e-spec.ts   503: catalogoReportes, consultasReporte y consultarReporte contra Keycloak e IA simulados (directorio de clientes, Keycloak caído, texto y atajo a la vez, errores de IA, IA lenta, [[String]!]!)
   tablero.e2e-spec.ts    009: tablero contra Obras, Materiales y Finanzas simulados (lote a Materiales en una sola llamada, cada servicio caído o lento)
-  consultar-obra.e2e-spec.ts  006: obras y obra(id) completos contra Obras, Materiales, Finanzas y Keycloak simulados (DataLoader, respuesta parcial, servicio lento)
+  consultar-obra.e2e-spec.ts  006: obras y obra(id) completos contra Obras, Materiales, Finanzas y Keycloak simulados (DataLoader, respuesta parcial, servicio lento); 301: Foto.deteccion con detección, null y sin el campo
   soporte/               tokens-prueba.ts (claves RSA locales en lugar del JWKS de Keycloak), servicio-simulado.ts (servidor REST de prueba con demora configurable)
 ```
 

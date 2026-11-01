@@ -59,7 +59,8 @@ type FilaComparacion {
 }
 
 type FotosPagina { items: [Foto!]! total: Int! pagina: Int! tamano: Int! }
-type Foto { id: ID! partidaId: ID! registradoPor: Usuario registradoEn: String! publicadaCliente: Boolean! urlDescarga: String! }
+type Foto { id: ID! partidaId: ID! registradoPor: Usuario registradoEn: String! publicadaCliente: Boolean! urlDescarga: String! deteccion: DeteccionEpp }   # deteccion: 301
+type DeteccionEpp { personas: Int! sinCasco: Int! sinChaleco: Int! versionModelo: String! }   # 301: tal cual desde GET /obras/{id}/fotos; null si no se analizó (siempre null para cliente, lo decide Obras)
 
 type PlanillaResumen { id: ID! numero: Int! periodo: String! estado: EstadoPlanilla! neto: Float! cobroNumero: String }   # cobroNumero: 008, de Obras
 type Planilla {

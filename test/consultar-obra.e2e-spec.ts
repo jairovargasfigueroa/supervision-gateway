@@ -677,6 +677,41 @@ describe('Consultar obra (e2e)', () => {
       ).toHaveLength(1);
     });
 
+    it('Foto.deteccion (301) se mapea tal cual desde Obras y es null si la foto no se analizó', async () => {
+      const deteccion = {
+        personas: 4,
+        sinCasco: 1,
+        sinChaleco: 2,
+        versionModelo: 'epp-1.0.0',
+      };
+      responderFotos([
+        { ...foto('f4', SUBE_FOTOS), deteccion },
+        { ...foto('f5', SUBE_FOTOS), deteccion: null },
+        // Sin el campo (Obras anterior a la 301): también null
+        foto('f6', SUBE_FOTOS),
+      ]);
+      const respuesta = await consultar(
+        `query ($id: ID!) {
+          obra(id: $id) {
+            fotos { items { id deteccion { personas sinCasco sinChaleco versionModelo } } }
+          }
+        }`,
+        { id: ID_OBRA },
+      );
+      expect(respuesta.body.errors).toBeUndefined();
+      expect(respuesta.body.data.obra.fotos.items).toEqual([
+        { id: 'f4', deteccion },
+        { id: 'f5', deteccion: null },
+        { id: 'f6', deteccion: null },
+      ]);
+      // Sin llamadas nuevas: sale de la misma página de GET /obras/{id}/fotos
+      expect(
+        obras.rutas.filter((ruta) =>
+          ruta.startsWith(`/obras/${ID_OBRA}/fotos`),
+        ),
+      ).toHaveLength(1);
+    });
+
     it('pasa la página y el tamaño pedidos; sin partidaId pide todas las fotos de la obra', async () => {
       responderFotos([]);
       await consultar(CONSULTA_FOTOS, { id: ID_OBRA, pagina: 3, tamano: 10 });
