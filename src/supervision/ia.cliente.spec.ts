@@ -264,7 +264,9 @@ describe('IaCliente', () => {
         ia.sugerenciasDeObra('o2', 'PENDIENTE', contextoPeticion),
       ]);
       expect(
-        servicio.consultar.mock.calls.map(([, ruta]) => ruta).sort(),
+        servicio.consultar.mock.calls
+          .map(([, ruta]) => String(ruta))
+          .sort((a, b) => a.localeCompare(b)),
       ).toEqual([
         '/hallazgos?obraId=o1',
         '/hallazgos?obraId=o1&agente=CONTROL_COBROS',
