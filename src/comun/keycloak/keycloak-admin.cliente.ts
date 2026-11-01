@@ -50,6 +50,11 @@ export class KeycloakAdminCliente {
     string,
     { usuario: Usuario; venceEn: number }
   >();
+  /** Usuarios de cada rol (503: directorio de clientes de los reportes), hasta `cacheUsuariosMs`. */
+  private readonly usuariosPorRol = new Map<
+    string,
+    { usuarios: Usuario[]; venceEn: number }
+  >();
 
   constructor(
     private readonly opciones: OpcionesKeycloakAdmin,
@@ -65,6 +70,24 @@ export class KeycloakAdminCliente {
     return (usuarios ?? [])
       .map(aUsuario)
       .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }
+
+  /**
+   * `usuariosConRol` con la misma caché en memoria de 5 minutos que los usuarios por id (006). La usa la 503 para el
+   * directorio de clientes de cada consulta de reportes; los errores no se guardan.
+   */
+  async usuariosConRolEnCache(
+    rol: string,
+    requestId: string,
+  ): Promise<Usuario[]> {
+    const guardado = this.usuariosPorRol.get(rol);
+    if (guardado && this.ahora() < guardado.venceEn) return guardado.usuarios;
+    const usuarios = await this.usuariosConRol(rol, requestId);
+    this.usuariosPorRol.set(rol, {
+      usuarios,
+      venceEn: this.ahora() + (this.opciones.cacheUsuariosMs ?? 5 * 60_000),
+    });
+    return usuarios;
   }
 
   /**

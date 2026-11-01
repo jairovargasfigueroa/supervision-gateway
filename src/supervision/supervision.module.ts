@@ -10,13 +10,14 @@ import {
   ObraConsumosAtipicosResolver,
 } from './consumos-atipicos.resolver.js';
 import { IaCliente } from './ia.cliente.js';
+import { ReportesResolver } from './reportes.resolver.js';
 import {
   FilaTableroRiesgoResolver,
   IndicadoresRiesgoResolver,
 } from './riesgo-tablero.resolver.js';
 import { ModeloRiesgoResolver, ObraRiesgoResolver } from './riesgo.resolver.js';
 
-/** Capas 4 y 5: campos que vienen del servicio de IA (riesgo de retraso, 402; consumos atípicos, 403). */
+/** Capas 4 y 5: campos que vienen del servicio de IA (riesgo de retraso, 402; consumos atípicos, 403; reportes, 503). */
 @Module({
   imports: [ObrasModule, MaterialesModule],
   providers: [
@@ -29,6 +30,7 @@ import { ModeloRiesgoResolver, ObraRiesgoResolver } from './riesgo.resolver.js';
     ConsumoAtipicoResolver,
     FilaTableroAtipicosResolver,
     IndicadoresAtipicosResolver,
+    ReportesResolver,
   ],
   exports: [IaCliente],
 })

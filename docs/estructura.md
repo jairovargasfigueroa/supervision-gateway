@@ -14,10 +14,10 @@ src/
   app.module.ts
   salud/                 salud.resolver.ts
   comun/                 comun.module.ts (@Global: ClienteServicio)
-    graphql/             limites.ts (regla de validación: profundidad 8, complejidad 1000)
+    graphql/             limites.ts (regla de validación: profundidad 8, complejidad 1000), listas-anidadas.ts (503: transformSchema que deja `[[String]!]!` en ConsultaReporte.filas)
     auth/                jwt.guard.ts (guard global), verificador-token.ts (jose + JWKS: firma, emisor, audiencia), publico.decorator.ts (@Publico: solo salud), limitador.ts (120 peticiones por minuto por usuario), roles.guard.ts (después del JwtGuard; SIN_PERMISO), roles.decorator.ts (@Roles), roles-efectivos.ts (regla del azp; tieneAlgunRol para campos que dependen del rol), contexto.ts (usuario + token en el contexto GraphQL)
-    http/                cliente-servicio.ts (fetch con token, X-Request-Id, timeout 3 s, reintento en consultas), errores.ts (Problem Details → GraphQLError con extensions.codigo), request-id.middleware.ts
-    keycloak/            keycloak-admin.cliente.ts (client credentials + caché del token; usuarios por id con caché de 5 min y DataLoader de la petición), usuarios.resolver.ts (usuarios(rol)), usuario.modelo.ts (Usuario y enum Rol)
+    http/                cliente-servicio.ts (fetch con token, X-Request-Id, timeout 3 s o el de la llamada (503: 60 s), reintento en consultas), errores.ts (Problem Details → GraphQLError con extensions.codigo), request-id.middleware.ts
+    keycloak/            keycloak-admin.cliente.ts (client credentials + caché del token; usuarios por id con caché de 5 min y DataLoader de la petición; 503: usuarios de un rol con la misma caché), usuarios.resolver.ts (usuarios(rol)), usuario.modelo.ts (Usuario y enum Rol)
     dataloaders/         dataloaders.ts (se crean por petición: cargador(contexto, nombre, carga), cadaUno, unaVezPorPeticion)
   obras/                 un módulo por área: obras, planillas, materiales, finanzas, tablero (y supervision en capas 4–5)
     obras.cliente.ts     llamadas REST a Obras (GET /obras, GET /obras/{id}, GET /obras/{id}/material-previsto, GET /obras/{id}/fotos, POST /obras); el módulo exporta ObrasCliente
@@ -41,8 +41,8 @@ src/
   finanzas/              006: finanzas.cliente.ts (GET /contratos?obraId=, GET /cobros?obraId=&tamano=100, con DataLoader; 009: GET /cobros/resumen; 008: GET /cobros/{id} con DataLoader), finanzas.resolver.ts (Obra.finanzas y Obra.cobros: null sin error si el rol no es admin ni gerente)
     modelos/             finanzas-obra.modelo.ts (FinanzasObra), cobro.modelo.ts (Cobro, enum EstadoCobro)
     finanzas.module.ts
-  supervision/           capas 4 y 5: ia.cliente.ts (402: GET /predicciones en lotes de 100 con DataLoader, GET /obras/{id}/prediccion, GET /modelos/riesgo-retraso), riesgo.ts (RiesgoRetraso desde IA; SIN_DATOS si falta), riesgo-tablero.resolver.ts (FilaTablero.riesgoRetraso, IndicadoresTablero.obrasRiesgoAlto), riesgo.resolver.ts (Obra.riesgoRetraso e historialRiesgo en una sola llamada; modeloRiesgo), consumos-atipicos.resolver.ts (403: Obra.consumosAtipicos; revisarConsumoAtipico con PUT /consumos-atipicos/{id}/revision sin reintento; ConsumoAtipico.material y revisadoPor), atipicos-tablero.resolver.ts (403: pendientes por fila e indicador, GET /consumos-atipicos/resumen en lotes de 100), supervision.module.ts
-    modelos/             riesgo.modelo.ts (NivelRiesgo, FactorRiesgo, RiesgoRetraso, PuntoRiesgo, ModeloRiesgo, ...), consumo-atipico.modelo.ts (ConsumoAtipico, EstadoRevision)
+  supervision/           capas 4 y 5: ia.cliente.ts (402: GET /predicciones en lotes de 100 con DataLoader, GET /obras/{id}/prediccion, GET /modelos/riesgo-retraso), riesgo.ts (RiesgoRetraso desde IA; SIN_DATOS si falta), riesgo-tablero.resolver.ts (FilaTablero.riesgoRetraso, IndicadoresTablero.obrasRiesgoAlto), riesgo.resolver.ts (Obra.riesgoRetraso e historialRiesgo en una sola llamada; modeloRiesgo), consumos-atipicos.resolver.ts (403: Obra.consumosAtipicos; revisarConsumoAtipico con PUT /consumos-atipicos/{id}/revision sin reintento; ConsumoAtipico.material y revisadoPor), atipicos-tablero.resolver.ts (403: pendientes por fila e indicador, GET /consumos-atipicos/resumen en lotes de 100), reportes.resolver.ts (503: catalogoReportes y consultasReporte; consultarReporte con 60 s y directorio de clientes), supervision.module.ts
+    modelos/             riesgo.modelo.ts (NivelRiesgo, FactorRiesgo, RiesgoRetraso, PuntoRiesgo, ModeloRiesgo, ...), consumo-atipico.modelo.ts (ConsumoAtipico, EstadoRevision), reporte.modelo.ts (503: ConjuntoReporte, AtajoReporte, TipoColumna, ResultadoConsultaReporte, ConsultaReporte, ConsultaReporteCorta, CatalogoReportes, ...)
 test/
   obras.e2e-spec.ts      GraphQL contra servicios simulados (servidores HTTP de prueba)
   app.e2e-spec.ts        salud, token y reenvío de token y X-Request-Id
@@ -55,6 +55,7 @@ test/
   planillas.e2e-spec.ts  007: Obra.planillas, planilla(id) y mutaciones contra un Obras simulado; 008: Planilla.cobro por rol y con Finanzas caído
   riesgo-retraso.e2e-spec.ts  402: tablero, obra y modelo contra Obras e IA simulados (lotes de 100, SIN_DATOS, IA caído o lento)
   consumos-atipicos.e2e-spec.ts  403: Obra.consumosAtipicos, tablero y revisarConsumoAtipico contra Obras, Materiales, Keycloak e IA simulados
+  reportes.e2e-spec.ts   503: catalogoReportes, consultasReporte y consultarReporte contra Keycloak e IA simulados (directorio de clientes, Keycloak caído, texto y atajo a la vez, errores de IA, IA lenta, [[String]!]!)
   tablero.e2e-spec.ts    009: tablero contra Obras, Materiales y Finanzas simulados (lote a Materiales en una sola llamada, cada servicio caído o lento)
   consultar-obra.e2e-spec.ts  006: obras y obra(id) completos contra Obras, Materiales, Finanzas y Keycloak simulados (DataLoader, respuesta parcial, servicio lento)
   soporte/               tokens-prueba.ts (claves RSA locales en lugar del JWKS de Keycloak), servicio-simulado.ts (servidor REST de prueba con demora configurable)

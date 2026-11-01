@@ -199,6 +199,29 @@ describe('ClienteServicio', () => {
     });
   });
 
+  it('503: una mutación con tiempo máximo propio espera más que el general y no se reintenta', async () => {
+    responder = () => ({ estado: 200, cuerpo: { id: 'c1' }, demoraMs: 300 });
+    await expect(
+      cliente(100).enviar('ia', 'POST', '/consultas-reporte', {}, contexto, {
+        tiempoMaximoMs: 1000,
+      }),
+    ).resolves.toEqual({ id: 'c1' });
+    expect(llamadas).toHaveLength(1);
+
+    llamadas = [];
+    responder = () => ({ estado: 200, cuerpo: {}, demoraMs: 500 });
+    const error = await errorDe(
+      cliente(100).enviar('ia', 'POST', '/consultas-reporte', {}, contexto, {
+        tiempoMaximoMs: 200,
+      }),
+    );
+    expect(llamadas).toHaveLength(1);
+    expect(error.extensions).toMatchObject({
+      codigo: 'SERVICIO_NO_DISPONIBLE',
+      servicio: 'ia',
+    });
+  });
+
   it('usa el código genérico del estado si el servicio no manda uno', async () => {
     responder = () => ({ estado: 403 });
     const error = await errorDe(

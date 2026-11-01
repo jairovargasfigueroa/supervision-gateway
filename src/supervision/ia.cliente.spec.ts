@@ -2,6 +2,7 @@ import type { ContextoGraphql } from '../comun/auth/contexto.js';
 import type { ClienteServicio } from '../comun/http/cliente-servicio.js';
 import { IaCliente } from './ia.cliente.js';
 import { EstadoRevision } from './modelos/consumo-atipico.modelo.js';
+import { AtajoReporte } from './modelos/reporte.modelo.js';
 
 const contexto = {
   req: { requestId: 'req-1', token: 't' },
@@ -93,5 +94,49 @@ describe('IaCliente', () => {
       '/modelos/riesgo-retraso',
       contexto,
     );
+  });
+
+  it('catalogoReportes pide GET /catalogo-reportes', async () => {
+    const { servicio, ia } = crear();
+    await ia.catalogoReportes(contexto);
+    expect(servicio.consultar).toHaveBeenCalledWith(
+      'ia',
+      '/catalogo-reportes',
+      contexto,
+    );
+  });
+
+  it('consultasReporte pide GET /consultas-reporte con el límite solo si viene', async () => {
+    const { servicio, ia } = crear();
+    await ia.consultasReporte(undefined, contexto);
+    expect(servicio.consultar).toHaveBeenLastCalledWith(
+      'ia',
+      '/consultas-reporte',
+      contexto,
+    );
+    await ia.consultasReporte(5, contexto);
+    expect(servicio.consultar).toHaveBeenLastCalledWith(
+      'ia',
+      '/consultas-reporte?limite=5',
+      contexto,
+    );
+  });
+
+  it('consultarReporte envía POST /consultas-reporte con 60 s y sin reintento (enviar)', async () => {
+    const { servicio, ia } = crear();
+    const pedido = {
+      atajo: AtajoReporte.COBROS_POR_VENCER,
+      directorio: { clientes: [{ id: 'c1', nombre: 'Constructora Andina' }] },
+    };
+    await ia.consultarReporte(pedido, contexto);
+    expect(servicio.enviar).toHaveBeenCalledWith(
+      'ia',
+      'POST',
+      '/consultas-reporte',
+      pedido,
+      contexto,
+      { tiempoMaximoMs: 60_000 },
+    );
+    expect(servicio.consultar).not.toHaveBeenCalled();
   });
 });

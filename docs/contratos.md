@@ -132,6 +132,32 @@ type ConsumoAtipico {
   revisadoEn: String comentario: String versionModelo: String!
 }
 
+# 503 · constructor de reportes (servicio de IA)
+enum ConjuntoReporte { OBRAS CONSUMO_MATERIAL MOVIMIENTOS COBROS PLANILLAS CONSUMOS_ATIPICOS }
+enum AtajoReporte {
+  AVANCE_OBRAS OBRAS_EN_RIESGO CONSUMO_MATERIAL_MES SALIDAS_SIN_STOCK COBROS_VENCIDOS
+  COBROS_POR_VENCER COBRADO_POR_OBRA PLANILLAS_OBSERVADAS PLANILLAS_APROBADAS CONSUMOS_ATIPICOS_PENDIENTES
+}
+enum TipoColumna { TEXTO NUMERO MONTO PORCENTAJE FECHA BOOLEANO }
+enum ResultadoConsultaReporte { OK NO_RECONOCIDA RECETA_INVALIDA ERROR }
+type ColumnaReporte { clave: String! titulo: String! tipo: TipoColumna! }
+type ElementoAplicado { nombre: String! valor: String! }
+type ConsultaReporte {
+  id: ID! texto: String atajo: AtajoReporte conjunto: ConjuntoReporte! tituloConjunto: String!
+  aplicado: [ElementoAplicado!]! resumen: String! resumenPlantilla: Boolean! avisos: [String!]!
+  columnas: [ColumnaReporte!]! filas: [[String]!]! totalFilas: Int! truncado: Boolean! creadaEn: String!
+}
+type ConsultaReporteCorta {
+  id: ID! texto: String atajo: AtajoReporte conjunto: ConjuntoReporte resultado: ResultadoConsultaReporte!
+  resumen: String totalFilas: Int creadaEn: String!
+}
+type ConjuntoDisponible {
+  conjunto: ConjuntoReporte! titulo: String! descripcion: String!
+  columnas: [ColumnaReporte!]! filtros: [String!]! agrupaciones: [String!]! ejemplos: [String!]!
+}
+type AtajoDisponible { atajo: AtajoReporte! titulo: String! descripcion: String! }
+type CatalogoReportes { conjuntos: [ConjuntoDisponible!]! atajos: [AtajoDisponible!]! }
+
 input AsignacionesEntrada { residenteId: ID! maestroId: ID! almaceneroId: ID! clienteId: ID! }
 input ContratoEntrada { monto: Float! plazoDias: Int! anticipoPct: Float! retencionPct: Float! firmadoEn: String! }
 input InsumoEntrada { materialId: ID! cantidadPorUnidad: Float! }
@@ -161,6 +187,8 @@ type Query {
   stockObra(obraId: ID!): [StockMaterial!]!                          # 003 · admin, gerente, residente (sus obras)
   tablero: Tablero!                                                  # 009 · admin, gerente, residente (sus obras)
   modeloRiesgo: ModeloRiesgo                                         # 402 · admin, gerente, residente (IA)
+  catalogoReportes: CatalogoReportes!                                # 503 · admin, gerente (IA)
+  consultasReporte(limite: Int): [ConsultaReporteCorta!]!            # 503 · admin, gerente (IA)
 }
 
 type Mutation {
@@ -172,6 +200,7 @@ type Mutation {
   guardarPlanilla(id: ID!, entrada: GuardarPlanillaEntrada!): Planilla!      # 007 · residente asignado
   presentarPlanilla(id: ID!, version: Int!): Planilla!                       # 007 · residente asignado
   revisarConsumoAtipico(id: ID!, estado: EstadoRevision!, comentario: String): ConsumoAtipico!   # 403 · admin, residente (asignado: lo valida IA)
+  consultarReporte(texto: String, atajo: AtajoReporte): ConsultaReporte!     # 503 · admin, gerente (IA, 60 s)
 }
 ```
 
@@ -211,7 +240,14 @@ type Mutation {
 - `revisarConsumoAtipico` → `PUT /consumos-atipicos/{id}/revision` `{ estado, comentario }` (`comentario` solo si viene). Solo `admin` y `residente` (el gateway responde `SIN_PERMISO` a otros roles sin llamar a IA; que sea el residente asignado lo valida IA). Sin reintento. Los errores de IA llegan en `extensions.codigo` con `data: null`: `CONSUMO_ATIPICO_NO_ENCONTRADO` (404), `REVISION_YA_REGISTRADA` (409), `COMENTARIO_INVALIDO` (422, con `extensions.errores[]`, `campo` = `comentario`) y `DATOS_INVALIDOS` (400, estado `PENDIENTE` o desconocido).
 - Si IA no responde: esos campos vuelven `null` con `SERVICIO_NO_DISPONIBLE` (`extensions.servicio = "ia"`); los errores de IA llegan con su `codigo` (`404 OBRA_NO_ENCONTRADA`).
 
-Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, reportes por voz) en sus especificaciones.
+### Constructor de reportes (503)
+
+- `catalogoReportes` → `GET /catalogo-reportes`; `consultasReporte(limite)` → `GET /consultas-reporte?limite=` (`limite` solo si viene; IA valida 1 a 20 y por defecto da 10). 3 s y un reintento.
+- `consultarReporte(texto, atajo)` → `POST /consultas-reporte` `{ texto | atajo, directorio }`. Exige **exactamente uno** de `texto` o `atajo`: con los dos o con ninguno, `DATOS_INVALIDOS` (`extensions.servicio = "gateway"`) sin llamar a IA. `directorio.clientes` (`[{ id, nombre }]`) son los usuarios con rol `cliente` de Keycloak (`GET /roles/cliente/users`, caché en memoria de 5 minutos como la de 006); si Keycloak falla, se envía sin `directorio` (IA avisa «Nombres de clientes no disponibles» o responde `SERVICIO_NO_DISPONIBLE` si se filtró por cliente). **Excepción al tiempo máximo:** 60 s, sin reintento.
+- La `receta` que manda IA no se expone. Los errores de IA llegan en `extensions.codigo` con `extensions.servicio = "ia"` y `data: null`: `TEXTO_INVALIDO` y `DATOS_INVALIDOS` (400), `INTENCION_NO_RECONOCIDA` (422), `RECETA_INVALIDA` (422, con `extensions.errores[]`), `DEMASIADAS_CONSULTAS` (429), `LLM_NO_DISPONIBLE`, `REPORTES_NO_DISPONIBLES` y `SERVICIO_NO_DISPONIBLE` (503), `TIEMPO_AGOTADO` (504). Si IA no responde en 60 s: `SERVICIO_NO_DISPONIBLE`.
+- `filas` es `[[String]!]!`: code-first no puede declararlo, así que `comun/graphql/listas-anidadas.ts` ajusta la lista interna al armar el esquema.
+
+La capa 5 agrega además los tipos y campos de agentes y sugerencias (502) en su especificación.
 
 ## Consume (REST)
 
@@ -221,6 +257,6 @@ Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, repo
 | Materiales | `GET /materiales`, `POST /materiales`, `PUT /materiales/{id}`, `GET /obras/{id}/stock`, `PUT /obras/{id}/stock/{materialId}/minimo`, `GET /obras/{id}/consumos`, `GET /stock/resumen` |
 | Finanzas | `GET /contratos`, `GET /cobros`, `GET /cobros/{id}`, `GET /cobros/resumen` |
 | Keycloak (cliente `gateway`) | `GET /admin/realms/supervision/roles/{rol}/users`, `GET /admin/realms/supervision/users/{id}` |
-| IA (capas 4 y 5) | 402: `GET /predicciones?obraIds=` (hasta 100 por llamada), `GET /obras/{id}/prediccion?historial=`, `GET /modelos/riesgo-retraso`; 403: `GET /consumos-atipicos?obraId=&estado=`, `GET /consumos-atipicos/resumen?obraIds=` (hasta 100 por llamada), `PUT /consumos-atipicos/{id}/revision` |
+| IA (capas 4 y 5) | 402: `GET /predicciones?obraIds=` (hasta 100 por llamada), `GET /obras/{id}/prediccion?historial=`, `GET /modelos/riesgo-retraso`; 403: `GET /consumos-atipicos?obraId=&estado=`, `GET /consumos-atipicos/resumen?obraIds=` (hasta 100 por llamada), `PUT /consumos-atipicos/{id}/revision`; 503: `GET /catalogo-reportes`, `GET /consultas-reporte?limite=`, `POST /consultas-reporte` (60 s) |
 
 URLs base por variables de entorno: `OBRAS_URL`, `MATERIALES_URL`, `FINANZAS_URL`, `IA_URL` (402; por defecto `http://localhost:8085`), `KEYCLOAK_URL`, `KEYCLOAK_GATEWAY_CLIENT_ID`, `KEYCLOAK_GATEWAY_CLIENT_SECRET`.
