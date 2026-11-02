@@ -4,7 +4,7 @@ import { tieneAlgunRol } from '../comun/auth/roles-efectivos.js';
 import { Obra } from '../obras/modelos/obra.modelo.js';
 import type { ObraRest } from '../obras/obras.cliente.js';
 import { FinanzasCliente } from './finanzas.cliente.js';
-import { Cobro } from './modelos/cobro.modelo.js';
+import { Cobro, EnvioCobro } from './modelos/cobro.modelo.js';
 import { FinanzasObra } from './modelos/finanzas-obra.modelo.js';
 
 /** Roles que ven los datos de Finanzas de una obra (contrato GraphQL). */
@@ -41,5 +41,15 @@ export class FinanzasResolver {
     if (!tieneAlgunRol(contexto.req.usuario, ROLES_FINANZAS))
       return Promise.resolve(null);
     return this.finanzasCliente.cobrosDeObra(obra.id, contexto);
+  }
+}
+
+/** 201: campos del cobro que llegan tal cual en el JSON de Finanzas (`GET /cobros`, `GET /cobros/{id}`). */
+@Resolver(() => Cobro)
+export class CobroResolver {
+  /** Correos que n8n anotó en Finanzas; lista vacía si Finanzas no manda `envios`. */
+  @ResolveField(() => [EnvioCobro])
+  envios(@Parent() cobro: Cobro): EnvioCobro[] {
+    return cobro.envios ?? [];
   }
 }

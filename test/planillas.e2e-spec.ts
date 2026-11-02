@@ -338,6 +338,30 @@ describe('Planillas (e2e)', () => {
       },
     );
 
+    it('201: CobroPlanilla.estado admite PAGADO', async () => {
+      finanzas.responder = porRuta({
+        [`/cobros/${ID_COBRO}`]: {
+          cuerpo: {
+            ...COBRO_REST,
+            estado: 'PAGADO',
+            pagadoEn: '2027-03-20',
+            comprobante: null,
+            envios: [],
+          },
+        },
+      });
+      const respuesta = await consultar(
+        `query ($id: ID!) { planilla(id: $id) { cobro { numero estado } } }`,
+        { id: ID_PLANILLA },
+        ['admin'],
+      );
+      expect(respuesta.body.errors).toBeUndefined();
+      expect(respuesta.body.data.planilla.cobro).toEqual({
+        numero: 'COB-2027-0002',
+        estado: 'PAGADO',
+      });
+    });
+
     it('el residente ve id y numero; el detalle de Finanzas vuelve null sin error y sin llamar a Finanzas', async () => {
       const respuesta = await consultar(CONSULTA_COBRO, { id: ID_PLANILLA }, [
         'residente',
