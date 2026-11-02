@@ -335,6 +335,71 @@ describe('Consultar obra (e2e)', () => {
       });
     });
 
+    it('201: pasa PAGADO, pagadoEn, comprobante y envios tal cual; envios vacío si Finanzas no lo manda', async () => {
+      const envios = [
+        {
+          tipo: 'NOTA_COBRO',
+          destinatario: 'cliente1@correo.test',
+          enviadoEn: '2027-04-02T12:05:00Z',
+        },
+        {
+          tipo: 'CONSTANCIA_PAGO',
+          destinatario: 'cliente1@correo.test',
+          enviadoEn: '2027-04-28T14:00:41Z',
+        },
+      ];
+      const pagado = {
+        ...COBRO_REST,
+        id: 'd0000000-0000-4000-8000-000000000202',
+        estado: 'PAGADO',
+        pagadoEn: '2027-04-28',
+        comprobante: 'TRF-883412',
+        envios,
+      };
+      const pendiente = {
+        ...COBRO_REST,
+        pagadoEn: null,
+        comprobante: null,
+      };
+      finanzas.responder = porRuta({
+        '/contratos': { cuerpo: [CONTRATO_REST] },
+        '/cobros': {
+          cuerpo: {
+            items: [pagado, pendiente],
+            total: 2,
+            pagina: 1,
+            tamano: 100,
+          },
+        },
+      });
+      const respuesta = await consultar(
+        `query ($id: ID!) {
+          obra(id: $id) {
+            cobros { id estado pagadoEn comprobante envios { tipo destinatario enviadoEn } }
+          }
+        }`,
+        { id: ID_OBRA },
+        ['gerente'],
+      );
+      expect(respuesta.body.errors).toBeUndefined();
+      expect(respuesta.body.data.obra.cobros).toEqual([
+        {
+          id: pagado.id,
+          estado: 'PAGADO',
+          pagadoEn: '2027-04-28',
+          comprobante: 'TRF-883412',
+          envios,
+        },
+        {
+          id: COBRO_REST.id,
+          estado: 'PENDIENTE',
+          pagadoEn: null,
+          comprobante: null,
+          envios: [],
+        },
+      ]);
+    });
+
     it('residente recibe finanzas y cobros en null, sin error y sin llamar a Finanzas', async () => {
       const respuesta = await consultar(CONSULTA_FINANZAS, { id: ID_OBRA }, [
         'residente',

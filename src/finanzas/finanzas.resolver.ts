@@ -1,10 +1,19 @@
-import { Context, Parent, ResolveField, Resolver } from '@nestjs/graphql';
+import {
+  Args,
+  Context,
+  ID,
+  Mutation,
+  Parent,
+  ResolveField,
+  Resolver,
+} from '@nestjs/graphql';
 import type { ContextoGraphql } from '../comun/auth/contexto.js';
+import { Roles } from '../comun/auth/roles.decorator.js';
 import { tieneAlgunRol } from '../comun/auth/roles-efectivos.js';
 import { Obra } from '../obras/modelos/obra.modelo.js';
 import type { ObraRest } from '../obras/obras.cliente.js';
 import { FinanzasCliente } from './finanzas.cliente.js';
-import { Cobro } from './modelos/cobro.modelo.js';
+import { Cobro, EnvioCobro } from './modelos/cobro.modelo.js';
 import { FinanzasObra } from './modelos/finanzas-obra.modelo.js';
 
 /** Roles que ven los datos de Finanzas de una obra (contrato GraphQL). */
@@ -41,5 +50,37 @@ export class FinanzasResolver {
     if (!tieneAlgunRol(contexto.req.usuario, ROLES_FINANZAS))
       return Promise.resolve(null);
     return this.finanzasCliente.cobrosDeObra(obra.id, contexto);
+  }
+}
+
+/**
+ * 201: registro de pago y campos del cobro que llegan tal cual en el JSON de Finanzas (`GET /cobros`,
+ * `GET /cobros/{id}`). Las reglas del pago (fechas, comprobante, cobro ya pagado) las valida Finanzas.
+ */
+@Resolver(() => Cobro)
+export class CobroResolver {
+  constructor(private readonly finanzasCliente: FinanzasCliente) {}
+
+  /** Solo admin: a otros roles el gateway responde SIN_PERMISO sin llamar a Finanzas. Sin reintento. */
+  @Roles('admin')
+  @Mutation(() => Cobro)
+  registrarPagoCobro(
+    @Context() contexto: ContextoGraphql,
+    @Args('cobroId', { type: () => ID }) cobroId: string,
+    @Args('pagadoEn') pagadoEn: string,
+    @Args('comprobante', { type: () => String, nullable: true })
+    comprobante?: string | null,
+  ): Promise<Cobro> {
+    return this.finanzasCliente.registrarPago(
+      cobroId,
+      { pagadoEn, comprobante },
+      contexto,
+    );
+  }
+
+  /** Correos que n8n anotó en Finanzas; lista vacía si Finanzas no manda `envios`. */
+  @ResolveField(() => [EnvioCobro])
+  envios(@Parent() cobro: Cobro): EnvioCobro[] {
+    return cobro.envios ?? [];
   }
 }
