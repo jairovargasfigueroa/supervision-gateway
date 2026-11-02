@@ -96,6 +96,26 @@ export class FinanzasCliente {
     ).load(id);
   }
 
+  /**
+   * `POST /cobros/{id}/pago` (201; solo admin), con el token del usuario y sin reintento. `comprobante` solo si viene.
+   * Los errores llegan con su codigo: 400 DATOS_INVALIDOS, 404 COBRO_NO_ENCONTRADO, 409 COBRO_YA_PAGADO y
+   * 422 FECHA_PAGO_INVALIDA.
+   */
+  registrarPago(
+    id: string,
+    pago: { pagadoEn: string; comprobante?: string | null },
+    contexto: ContextoGraphql,
+  ): Promise<Cobro> {
+    const { pagadoEn, comprobante } = pago;
+    return this.cliente.enviar<Cobro>(
+      'finanzas',
+      'POST',
+      `/cobros/${encodeURIComponent(id)}/pago`,
+      comprobante == null ? { pagadoEn } : { pagadoEn, comprobante },
+      contexto,
+    );
+  }
+
   /** `GET /cobros/resumen` (009; roles admin y gerente): cobros vencidos y por vencer en 30 días. */
   resumenCobros(contexto: ContextoGraphql): Promise<ResumenCobrosRest> {
     return this.cliente.consultar<ResumenCobrosRest>(

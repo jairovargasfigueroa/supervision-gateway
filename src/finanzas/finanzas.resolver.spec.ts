@@ -1,3 +1,4 @@
+import type { FinanzasCliente } from './finanzas.cliente.js';
 import { CobroResolver } from './finanzas.resolver.js';
 import {
   type Cobro,
@@ -20,7 +21,7 @@ const cobro = (envios?: Cobro['envios']): Cobro => ({
 });
 
 describe('CobroResolver (201)', () => {
-  const resolver = new CobroResolver();
+  const resolver = new CobroResolver({} as FinanzasCliente);
 
   it('envios devuelve la lista de Finanzas tal cual', () => {
     const envios = [
