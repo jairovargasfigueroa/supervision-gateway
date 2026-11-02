@@ -11,7 +11,8 @@ enum Rol { admin residente gerente maestro almacenero cliente }
 enum EstadoObra { SIN_CONTRATO EN_EJECUCION CONCLUIDA }
 enum EstadoPlanilla { BORRADOR PRESENTADA APROBANDO APROBADA OBSERVADA }
 enum EstadoStock { BAJO JUSTO OK }
-enum EstadoCobro { PENDIENTE VENCIDO }
+enum EstadoCobro { PENDIENTE VENCIDO PAGADO }   # PAGADO: 201
+enum TipoEnvioCobro { NOTA_COBRO RECORDATORIO_POR_VENCER RECORDATORIO_VENCIDO CONSTANCIA_PAGO }   # 201
 enum TipoMaterial { CEMENTO ACERO AGREGADO LADRILLO MADERA ELECTRICO SANITARIO PINTURA OTRO }
 enum ZonaObra { NORTE SUR ESTE OESTE CENTRO }   # 401
 
@@ -89,7 +90,11 @@ type StockMaterial {
   cantidad: Float! minimo: Float! estado: EstadoStock!
 }
 
-type Cobro { id: ID! numero: String! planillaId: ID! montoNeto: Float! emitidoEn: String! venceEn: String! estado: EstadoCobro! }
+type Cobro {
+  id: ID! numero: String! planillaId: ID! montoNeto: Float! emitidoEn: String! venceEn: String! estado: EstadoCobro!
+  pagadoEn: String comprobante: String envios: [EnvioCobro!]!   # 201 · tal cual Finanzas (null si no está pagado o sin comprobante)
+}
+type EnvioCobro { tipo: TipoEnvioCobro! destinatario: String! enviadoEn: String! }   # 201 · ordenados por enviadoEn (Finanzas)
 type CobroPlanilla { id: ID! numero: String! montoNeto: Float emitidoEn: String venceEn: String estado: EstadoCobro }   # 008 · id y numero: Obras; el resto: Finanzas, null sin error si el rol no es admin ni gerente
 
 type Tablero { indicadores: IndicadoresTablero obras: [FilaTablero!] }
@@ -260,6 +265,7 @@ type Mutation {
   ejecutarAgente(agente: Agente!): EjecucionCorta!                           # 502 · admin, gerente
   aprobarSugerencia(id: ID!, comentario: String): Sugerencia!                # 502 · admin, gerente, residente (sus obras, sin CONTROL_COBROS)
   rechazarSugerencia(id: ID!, motivo: String!): Sugerencia!                  # 502 · admin, gerente, residente (sus obras, sin CONTROL_COBROS)
+  registrarPagoCobro(cobroId: ID!, pagadoEn: String!, comprobante: String): Cobro!   # 201 · admin
 }
 ```
 
@@ -316,13 +322,18 @@ type Mutation {
 - `ejecutarAgente` → `POST /agentes/{agente}/ejecuciones` (sin cuerpo); `aprobarSugerencia` → `POST /sugerencias/{id}/aprobar` `{ comentario }` (`comentario` solo si viene); `rechazarSugerencia` → `POST /sugerencias/{id}/rechazar` `{ motivo }`. Sin reintento. Los errores de IA llegan en `extensions.codigo` con `extensions.servicio = "ia"` y `data: null`: `AGENTE_INVALIDO` (400), `EJECUCION_EN_CURSO` (409), `SUGERENCIA_NO_ENCONTRADA` (404, también si no puede verla), `SUGERENCIA_YA_DECIDIDA` (409), `COMENTARIO_INVALIDO` (422, con `extensions.errores[]`) y `MOTIVO_INVALIDO` (422). Aprobar solo registra la decisión.
 - `ejecucionAgente(id)` inexistente: `null` con `EJECUCION_NO_ENCONTRADA`. Si IA no responde: `SERVICIO_NO_DISPONIBLE` con `extensions.servicio = "ia"`.
 
+### Cobranza automática (201)
+
+- `Cobro.pagadoEn`, `Cobro.comprobante` y `Cobro.envios` llegan tal cual en `GET /cobros` y `GET /cobros/{id}` (Finanzas): no hay llamadas nuevas para leerlos. `envios` vacío si Finanzas no manda la lista. `CobroPlanilla.estado` admite `PAGADO` (mismo enum).
+- `registrarPagoCobro(cobroId, pagadoEn, comprobante)` → `POST /cobros/{id}/pago` `{ pagadoEn, comprobante }` (`comprobante` solo si viene) con el token del usuario; devuelve el cobro tal como lo responde Finanzas. Solo `admin` (el gateway responde `SIN_PERMISO` a otros roles sin llamar a Finanzas). Sin reintento. Las reglas (fecha entre la emisión y hoy, comprobante de hasta 50 caracteres) las valida Finanzas; sus errores llegan en `extensions.codigo` con `extensions.servicio = "finanzas"` y `data: null`: `DATOS_INVALIDOS` (400), `COBRO_NO_ENCONTRADO` (404), `COBRO_YA_PAGADO` (409) y `FECHA_PAGO_INVALIDA` (422). Si Finanzas no responde: `SERVICIO_NO_DISPONIBLE`.
+
 ## Consume (REST)
 
 | Servicio | Endpoints |
 |---|---|
 | Obras | `GET /obras`, `GET /obras/{id}`, `GET /obras/{id}/material-previsto`, `GET /obras/{id}/fotos`, `GET /obras/{id}/planillas`, `GET /planillas/{id}`, `POST /obras`, `POST /obras/{id}/planillas`, `PUT /planillas/{id}`, `POST /planillas/{id}/presentar` |
 | Materiales | `GET /materiales`, `POST /materiales`, `PUT /materiales/{id}`, `GET /obras/{id}/stock`, `PUT /obras/{id}/stock/{materialId}/minimo`, `GET /obras/{id}/consumos`, `GET /stock/resumen` |
-| Finanzas | `GET /contratos`, `GET /cobros`, `GET /cobros/{id}`, `GET /cobros/resumen` |
+| Finanzas | `GET /contratos`, `GET /cobros`, `GET /cobros/{id}`, `GET /cobros/resumen`; 201: `POST /cobros/{id}/pago` |
 | Keycloak (cliente `gateway`) | `GET /admin/realms/supervision/roles/{rol}/users`, `GET /admin/realms/supervision/users/{id}` |
 | IA (capas 4 y 5) | 402: `GET /predicciones?obraIds=` (hasta 100 por llamada), `GET /obras/{id}/prediccion?historial=`, `GET /modelos/riesgo-retraso`; 403: `GET /consumos-atipicos?obraId=&estado=`, `GET /consumos-atipicos/resumen?obraIds=` (hasta 100 por llamada), `PUT /consumos-atipicos/{id}/revision`; 503: `GET /catalogo-reportes`, `GET /consultas-reporte?limite=`, `POST /consultas-reporte` (60 s); 502: `GET /agentes`, `POST /agentes/{agente}/ejecuciones`, `GET /ejecuciones?agente=&estado=&limite=`, `GET /ejecuciones/{id}`, `GET /hallazgos?agente=&obraId=`, `GET /sugerencias?estado=&agente=&obraId=&limite=`, `POST /sugerencias/{id}/aprobar`, `POST /sugerencias/{id}/rechazar` |
 
