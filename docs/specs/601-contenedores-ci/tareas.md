@@ -5,6 +5,6 @@ Requisitos y diseño: `docs/specs/601-contenedores-ci/` de la carpeta que agrupa
 Marca cada tarea al terminarla (con sus pruebas y su commit).
 
 - [x] Aplicar «Cambios a contratos y datos» que tocan este proyecto (`docs/`, `CLAUDE.md`, `.env.example`)
-- [ ] Revisar que no quede ninguna dirección fija; `CORS_ORIGENES`, `NODE_ENV=production`
+- [x] Revisar que no quede ninguna dirección fija; `CORS_ORIGENES`, `NODE_ENV=production`
 - [ ] `Dockerfile` en dos etapas y `.dockerignore`; prueba con `/salud`
 - [ ] `.github/workflows/ci.yml`: job `prueba` (lint, pruebas unitarias y e2e, compilación) y job `imagen` (build en PR; *push* a GHCR con `sha-<7>` y `main` en `main`)

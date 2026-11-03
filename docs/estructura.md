@@ -60,7 +60,7 @@ test/
   cobranza.e2e-spec.ts   201: registrarPagoCobro contra un Finanzas simulado (cuerpo, token, errores de Finanzas con su codigo, sin reintento, Finanzas lento, SIN_PERMISO)
   tablero.e2e-spec.ts    009: tablero contra Obras, Materiales y Finanzas simulados (lote a Materiales en una sola llamada, cada servicio caído o lento)
   consultar-obra.e2e-spec.ts  006: obras y obra(id) completos contra Obras, Materiales, Finanzas y Keycloak simulados (DataLoader, respuesta parcial, servicio lento); 301: Foto.deteccion con detección, null y sin el campo
-  soporte/               tokens-prueba.ts (claves RSA locales en lugar del JWKS de Keycloak), servicio-simulado.ts (servidor REST de prueba con demora configurable)
+  soporte/               tokens-prueba.ts (claves RSA locales en lugar del JWKS de Keycloak), servicio-simulado.ts (servidor REST de prueba con demora configurable), entorno.ts (601: `setupFiles` de las e2e; direcciones de desarrollo para las que la prueba no simula, sin pisar el entorno)
 ```
 
 ## Reglas
@@ -69,6 +69,7 @@ test/
 - Los nombres de tipos y campos siguen exactamente `docs/contratos.md` (el SDL esperado).
 - Un `@ResolveField` por dato que viene de otro servicio, para que un fallo afecte solo a ese campo.
 - Todo acceso REST pasa por `cliente-servicio.ts`.
+- Configuración solo por variables (601): `OBRAS_URL`, `MATERIALES_URL`, `FINANZAS_URL`, `IA_URL` y `KEYCLOAK_URL` con `getOrThrow` (sin dirección por defecto: si falta una, no arranca); `CORS_ORIGENES` en `main.ts`. `NODE_ENV=production`: registros en JSON (`main.ts`), sin introspección ni Sandbox y sin trazas en los errores de Apollo. Una CA adicional (ensayo local) con `NODE_EXTRA_CA_CERTS`.
 - Archivos en `kebab-case` con sufijo (`.resolver.ts`, `.cliente.ts`, `.modelo.ts`, `.entrada.ts`).
 
 ## Pruebas

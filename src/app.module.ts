@@ -64,7 +64,7 @@ const enProduccion = process.env.NODE_ENV === 'production';
       inject: [ConfigService],
       useFactory: (config: ConfigService) =>
         VerificadorToken.desdeKeycloak(
-          config.get('KEYCLOAK_URL', 'http://localhost:8080'),
+          config.getOrThrow<string>('KEYCLOAK_URL'),
           config.get('KEYCLOAK_REALM', 'supervision'),
           'plataforma-api',
         ),
