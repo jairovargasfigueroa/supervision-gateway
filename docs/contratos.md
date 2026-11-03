@@ -327,6 +327,10 @@ type Mutation {
 - `Cobro.pagadoEn`, `Cobro.comprobante` y `Cobro.envios` llegan tal cual en `GET /cobros` y `GET /cobros/{id}` (Finanzas): no hay llamadas nuevas para leerlos. `envios` vacío si Finanzas no manda la lista. `CobroPlanilla.estado` admite `PAGADO` (mismo enum).
 - `registrarPagoCobro(cobroId, pagadoEn, comprobante)` → `POST /cobros/{id}/pago` `{ pagadoEn, comprobante }` (`comprobante` solo si viene) con el token del usuario; devuelve el cobro tal como lo responde Finanzas. Solo `admin` (el gateway responde `SIN_PERMISO` a otros roles sin llamar a Finanzas). Sin reintento. Las reglas (fecha entre la emisión y hoy, comprobante de hasta 50 caracteres) las valida Finanzas; sus errores llegan en `extensions.codigo` con `extensions.servicio = "finanzas"` y `data: null`: `DATOS_INVALIDOS` (400), `COBRO_NO_ENCONTRADO` (404), `COBRO_YA_PAGADO` (409) y `FECHA_PAGO_INVALIDA` (422). Si Finanzas no responde: `SERVICIO_NO_DISPONIBLE`.
 
+## Expone: REST técnico (601)
+
+- `GET /salud`: sin token, `200 {"estado":"ok"}` (convenciones, «Registros y salud»). Lo usan el `HEALTHCHECK` de la imagen y la prueba de humo. No toca a ningún servicio. La consulta GraphQL `{ salud }` sigue igual.
+
 ## Consume (REST)
 
 | Servicio | Endpoints |
@@ -337,4 +341,4 @@ type Mutation {
 | Keycloak (cliente `gateway`) | `GET /admin/realms/supervision/roles/{rol}/users`, `GET /admin/realms/supervision/users/{id}` |
 | IA (capas 4 y 5) | 402: `GET /predicciones?obraIds=` (hasta 100 por llamada), `GET /obras/{id}/prediccion?historial=`, `GET /modelos/riesgo-retraso`; 403: `GET /consumos-atipicos?obraId=&estado=`, `GET /consumos-atipicos/resumen?obraIds=` (hasta 100 por llamada), `PUT /consumos-atipicos/{id}/revision`; 503: `GET /catalogo-reportes`, `GET /consultas-reporte?limite=`, `POST /consultas-reporte` (60 s); 502: `GET /agentes`, `POST /agentes/{agente}/ejecuciones`, `GET /ejecuciones?agente=&estado=&limite=`, `GET /ejecuciones/{id}`, `GET /hallazgos?agente=&obraId=`, `GET /sugerencias?estado=&agente=&obraId=&limite=`, `POST /sugerencias/{id}/aprobar`, `POST /sugerencias/{id}/rechazar` |
 
-URLs base por variables de entorno: `OBRAS_URL`, `MATERIALES_URL`, `FINANZAS_URL`, `IA_URL` (402; por defecto `http://localhost:8085`), `KEYCLOAK_URL`, `KEYCLOAK_GATEWAY_CLIENT_ID`, `KEYCLOAK_GATEWAY_CLIENT_SECRET`.
+URLs base por variables de entorno, **obligatorias y sin valor por defecto en el código** (601; las de desarrollo están en `.env.example`): `OBRAS_URL`, `MATERIALES_URL`, `FINANZAS_URL`, `IA_URL` (402) y `KEYCLOAK_URL`. Además `KEYCLOAK_REALM` (por defecto `supervision`), `KEYCLOAK_GATEWAY_CLIENT_ID` (por defecto `gateway`), `KEYCLOAK_GATEWAY_CLIENT_SECRET` y `CORS_ORIGENES`.

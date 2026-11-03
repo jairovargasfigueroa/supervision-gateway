@@ -27,6 +27,13 @@ npm run build
 
 Configuración local: copiar `.env.example` a `.env`. **`.env` nunca se sube.**
 
+## Despliegue (601)
+
+- Imagen: `Dockerfile` en dos etapas (`construir` con `npm ci`, `npm run build` y `npm prune --omit=dev`; `final` con `node dist/main.js`, usuario `node`, `HEALTHCHECK` contra `GET /salud`, puerto 4000). La imagen no trae configuración: todo entra por variables al arrancar.
+- Modo producción: `NODE_ENV=production` (registros en JSON, sin introspección ni Apollo Sandbox, sin trazas en los errores). `OBRAS_URL`, `MATERIALES_URL`, `FINANZAS_URL`, `IA_URL` y `KEYCLOAK_URL` son obligatorias (sin valor por defecto en el código); `CORS_ORIGENES` con el origen del shell publicado. Una CA adicional (ensayo local) entra con `NODE_EXTRA_CA_CERTS`, sin cambiar el código.
+- `GET /salud` (REST, sin token, `200 {"estado":"ok"}`, convenciones) para el `HEALTHCHECK` y la prueba de humo; la consulta GraphQL `{ salud }` sigue igual.
+- CI: `.github/workflows/ci.yml`; en cada *pull request* a `develop` o `main`, lint, tipos, pruebas unitarias y e2e, compilación y la imagen sin publicar; en *push* a `main`, publica `ghcr.io/jairovargasfigueroa/supervision-gateway` con `sha-<7>` y `main`.
+
 ## Estructura
 
 ```
