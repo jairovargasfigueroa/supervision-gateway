@@ -87,6 +87,10 @@ Dockerfile        dos etapas sobre node:24.22.0-alpine3.24: `construir` (npm ci,
                   producción y dist; NODE_ENV=production, PORT=4000, usuario `node`, HEALTHCHECK con fetch a GET /salud,
                   etiqueta OCI `org.opencontainers.image.source`; CMD node dist/main.js)
 .dockerignore     .git, node_modules, dist, .env*, *.log, coverage, test, docs y el resto de la lista común
+.github/workflows/ci.yml
+                  job `prueba` (npm ci, lint, tipos con tsc --noEmit, pruebas unitarias y e2e con servicios simulados,
+                  compilación) y job `imagen` (en PR: build sin publicar; en push a main: push a
+                  ghcr.io/jairovargasfigueroa/supervision-gateway con sha-<7> y main; caché de capas type=gha; solo GITHUB_TOKEN)
 ```
 
 - Las pruebas no corren dentro del `docker build`: corren antes, en el workflow.
