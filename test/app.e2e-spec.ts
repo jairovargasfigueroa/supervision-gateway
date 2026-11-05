@@ -77,6 +77,14 @@ describe('Gateway (e2e)', () => {
       .expect({ data: { salud: 'ok' } });
   });
 
+  it('responde GET /salud sin token (601)', () => {
+    return request(app.getHttpServer())
+      .get('/salud')
+      .expect(200)
+      .expect('Content-Type', /application\/json/)
+      .expect({ estado: 'ok' });
+  });
+
   it('rechaza una consulta sin token con NO_AUTENTICADO', async () => {
     const respuesta = await graphql('{ quienSoy }');
     expect(respuesta.body.data).toBeNull();

@@ -20,6 +20,7 @@ import { FinanzasModule } from './finanzas/finanzas.module.js';
 import { MaterialesModule } from './materiales/materiales.module.js';
 import { ObrasModule } from './obras/obras.module.js';
 import { PlanillasModule } from './planillas/planillas.module.js';
+import { SaludController } from './salud/salud.controller.js';
 import { SaludResolver } from './salud/salud.resolver.js';
 import { SupervisionModule } from './supervision/supervision.module.js';
 import { TableroModule } from './tablero/tablero.module.js';
@@ -57,6 +58,7 @@ const enProduccion = process.env.NODE_ENV === 'production';
     TableroModule,
     SupervisionModule,
   ],
+  controllers: [SaludController],
   providers: [
     SaludResolver,
     {

@@ -12,7 +12,7 @@ NestJS 12, `@nestjs/graphql` 14 + `@nestjs/apollo` 14 + `@apollo/server` 5 (code
 src/
   main.ts
   app.module.ts
-  salud/                 salud.resolver.ts
+  salud/                 salud.resolver.ts ({ salud }), salud.controller.ts (601: GET /salud sin token)
   comun/                 comun.module.ts (@Global: ClienteServicio)
     graphql/             limites.ts (regla de validación: profundidad 8, complejidad 1000), listas-anidadas.ts (503: transformSchema que deja `[[String]!]!` en ConsultaReporte.filas)
     auth/                jwt.guard.ts (guard global), verificador-token.ts (jose + JWKS: firma, emisor, audiencia), publico.decorator.ts (@Publico: solo salud), limitador.ts (120 peticiones por minuto por usuario), roles.guard.ts (después del JwtGuard; SIN_PERMISO), roles.decorator.ts (@Roles), roles-efectivos.ts (regla del azp; tieneAlgunRol para campos que dependen del rol), contexto.ts (usuario + token en el contexto GraphQL)
@@ -45,7 +45,7 @@ src/
     modelos/             riesgo.modelo.ts (NivelRiesgo, FactorRiesgo, RiesgoRetraso, PuntoRiesgo, ModeloRiesgo, ...), consumo-atipico.modelo.ts (ConsumoAtipico, EstadoRevision), reporte.modelo.ts (503: ConjuntoReporte, AtajoReporte, TipoColumna, ResultadoConsultaReporte, ConsultaReporte, ConsultaReporteCorta, CatalogoReportes, ...), agente.modelo.ts (502: Agente, TipoHallazgo, AccionSugerida, ..., AgenteInfo, EjecucionCorta, EjecucionAgente, PasoEjecucion, Hallazgo, Sugerencia)
 test/
   obras.e2e-spec.ts      GraphQL contra servicios simulados (servidores HTTP de prueba)
-  app.e2e-spec.ts        salud, token y reenvío de token y X-Request-Id
+  app.e2e-spec.ts        salud (GraphQL y GET /salud), token y reenvío de token y X-Request-Id
   obras.e2e-spec.ts      consulta obras: lista, filtros y Obras caído
   seguridad.e2e-spec.ts  encabezados, profundidad, límite de peticiones y Keycloak caído
   roles.e2e-spec.ts      @Roles: NO_AUTENTICADO, SIN_PERMISO, regla del azp (demo1)
@@ -76,3 +76,17 @@ test/
 
 - Unitarias de mapeos y del cliente HTTP (timeout, reintento, errores).
 - e2e con servicios simulados: caso feliz, servicio caído, servicio lento (> 3 s).
+
+## Imagen y CI (601)
+
+En la raíz del proyecto:
+
+```
+Dockerfile        dos etapas sobre node:24.22.0-alpine3.24: `construir` (npm ci, npm run build, npm prune --omit=dev y sin
+                  `typescript`, que queda solo como peer opcional de @nestjs/graphql) y `final` (package.json, node_modules de
+                  producción y dist; NODE_ENV=production, PORT=4000, usuario `node`, HEALTHCHECK con fetch a GET /salud,
+                  etiqueta OCI `org.opencontainers.image.source`; CMD node dist/main.js)
+.dockerignore     .git, node_modules, dist, .env*, *.log, coverage, test, docs y el resto de la lista común
+```
+
+- Las pruebas no corren dentro del `docker build`: corren antes, en el workflow.
