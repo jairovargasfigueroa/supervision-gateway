@@ -4,4 +4,4 @@ Requisitos y diseño: `docs/specs/401-base-reportes/` de la carpeta que agrupa l
 
 Marca cada tarea al terminarla (con sus pruebas y su commit).
 
-- [ ] Enum `ZonaObra`; campo `zona` en `RegistrarObraEntrada`, `Obra` y `ObraResumen` mapeado desde Obras; pruebas
+- [x] Enum `ZonaObra`; campo `zona` en `RegistrarObraEntrada`, `Obra` y `ObraResumen` mapeado desde Obras; pruebas

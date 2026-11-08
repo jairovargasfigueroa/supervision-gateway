@@ -12,25 +12,55 @@ NestJS 12, `@nestjs/graphql` 14 + `@nestjs/apollo` 14 + `@apollo/server` 5 (code
 src/
   main.ts
   app.module.ts
-  salud/                 salud.resolver.ts
+  salud/                 salud.resolver.ts ({ salud }), salud.controller.ts (601: GET /salud sin token)
   comun/                 comun.module.ts (@Global: ClienteServicio)
-    graphql/             limites.ts (regla de validación: profundidad 8, complejidad 1000)
-    auth/                jwt.guard.ts (guard global), verificador-token.ts (jose + JWKS: firma, emisor, audiencia), publico.decorator.ts (@Publico: solo salud), limitador.ts (120 peticiones por minuto por usuario), roles.guard.ts, roles.decorator.ts, contexto.ts (usuario + token en el contexto GraphQL)
-    http/                cliente-servicio.ts (fetch con token, X-Request-Id, timeout 3 s, reintento en consultas), errores.ts (Problem Details → GraphQLError con extensions.codigo), request-id.middleware.ts
-    keycloak/            keycloak-admin.cliente.ts (client credentials + caché), usuarios.resolver.ts
-    dataloaders/         dataloaders.ts (se crean por petición)
+    graphql/             limites.ts (regla de validación: profundidad 8, complejidad 1000), listas-anidadas.ts (503: transformSchema que deja `[[String]!]!` en ConsultaReporte.filas)
+    auth/                jwt.guard.ts (guard global), verificador-token.ts (jose + JWKS: firma, emisor, audiencia), publico.decorator.ts (@Publico: solo salud), limitador.ts (120 peticiones por minuto por usuario), roles.guard.ts (después del JwtGuard; SIN_PERMISO), roles.decorator.ts (@Roles), roles-efectivos.ts (regla del azp; tieneAlgunRol para campos que dependen del rol), contexto.ts (usuario + token en el contexto GraphQL)
+    http/                cliente-servicio.ts (fetch con token, X-Request-Id, timeout 3 s o el de la llamada (503: 60 s), reintento en consultas), errores.ts (Problem Details → GraphQLError con extensions.codigo), request-id.middleware.ts
+    keycloak/            keycloak-admin.cliente.ts (client credentials + caché del token; usuarios por id con caché de 5 min y DataLoader de la petición; 503: usuarios de un rol con la misma caché), usuarios.resolver.ts (usuarios(rol)), usuario.modelo.ts (Usuario y enum Rol)
+    dataloaders/         dataloaders.ts (se crean por petición: cargador(contexto, nombre, carga), cadaUno, unaVezPorPeticion)
   obras/                 un módulo por área: obras, planillas, materiales, finanzas, tablero (y supervision en capas 4–5)
-    obras.cliente.ts     llamadas REST a Obras
-    obras.resolver.ts    consultas, mutaciones y @ResolveField
-    modelos/             obra.modelo.ts, partida.modelo.ts, ... (@ObjectType)
+    obras.cliente.ts     llamadas REST a Obras (GET /obras, GET /obras/{id}, GET /obras/{id}/material-previsto, GET /obras/{id}/fotos, POST /obras); el módulo exporta ObrasCliente
+    obras.resolver.ts    consultas, mutaciones y @ResolveField (asignaciones, fotos)
+    fotos.resolver.ts    005: Foto.registradoPor (Keycloak)
+    modelos/             obra-resumen.modelo.ts, obra.modelo.ts (Obra, ContratoObra), partida.modelo.ts (Partida, Insumo), foto.modelo.ts (Foto, FotosPagina; 301: DeteccionEpp y Foto.deteccion), ... (@ObjectType)
     entradas/            registrar-obra.entrada.ts (@InputType)
     obras.module.ts
+  materiales/            003: materiales.cliente.ts (GET/POST/PUT /materiales, catálogo completo por petición, GET /obras/{id}/stock, PUT .../minimo; 009: GET /stock/resumen?obraIds= en lote con DataLoader), materiales.resolver.ts (materiales, stockObra, crearMaterial, actualizarMaterial, definirStockMinimo)
+                         006: insumos.resolver.ts (Insumo.material desde el catálogo), material-comparado.resolver.ts (Obra.materialComparado), comparacion.ts (une previsto y consumos; diferencia y excedido), GET /obras/{id}/consumos
+    modelos/             comparacion-material.modelo.ts (ComparacionMaterial, FilaComparacion)
+    modelos/             material.modelo.ts (Material, Atributo, MaterialesPagina, enum TipoMaterial), stock-material.modelo.ts (StockMaterial, enum EstadoStock)
+    entradas/            material.entrada.ts (MaterialEntrada, AtributoEntrada)
+    materiales.module.ts
+  planillas/             007: planillas.cliente.ts (GET /obras/{id}/planillas, GET /planillas/{id}, POST /obras/{id}/planillas, PUT /planillas/{id}, POST /planillas/{id}/presentar), planillas.resolver.ts (planilla(id), crearPlanilla, guardarPlanilla, presentarPlanilla y Obra.planillas; 008: Planilla.cobro desde cobroId y cobroNumero, y CobroPlanillaResolver: montoNeto, emitidoEn, venceEn y estado con GET /cobros/{id} solo para admin y gerente)
+    modelos/             planilla.modelo.ts (Planilla, LineaPlanilla, PlanillaResumen, CobroPlanilla)
+    entradas/            guardar-planilla.entrada.ts (GuardarPlanillaEntrada, LineaEntrada)
+    planillas.module.ts  (importa FinanzasModule para el detalle del cobro, 008)
+  tablero/               009: obras-tablero.ts (obras EN_EJECUCION una vez por petición; las usa también la 402), tablero.resolver.ts (tablero, Tablero.obras e indicadores, FilaTablero.materialesBajos e IndicadoresTablero), filas.ts (FilaTablero desde ObraResumen; diferencia), tablero.module.ts
+    modelos/             tablero.modelo.ts (Tablero, IndicadoresTablero, FilaTablero, ResumenMonto)
+  finanzas/              006: finanzas.cliente.ts (GET /contratos?obraId=, GET /cobros?obraId=&tamano=100, con DataLoader; 009: GET /cobros/resumen; 008: GET /cobros/{id} con DataLoader; 201: POST /cobros/{id}/pago sin reintento), finanzas.resolver.ts (Obra.finanzas y Obra.cobros: null sin error si el rol no es admin ni gerente; 201: CobroResolver con registrarPagoCobro solo admin y Cobro.envios)
+    modelos/             finanzas-obra.modelo.ts (FinanzasObra), cobro.modelo.ts (Cobro, enum EstadoCobro; 201: PAGADO, pagadoEn, comprobante, EnvioCobro y enum TipoEnvioCobro)
+    finanzas.module.ts
+  supervision/           capas 4 y 5: ia.cliente.ts (402: GET /predicciones en lotes de 100 con DataLoader, GET /obras/{id}/prediccion, GET /modelos/riesgo-retraso; 503: reportes; 502: agentes, ejecuciones, hallazgos y sugerencias), riesgo.ts (RiesgoRetraso desde IA; SIN_DATOS si falta), riesgo-tablero.resolver.ts (FilaTablero.riesgoRetraso, IndicadoresTablero.obrasRiesgoAlto), riesgo.resolver.ts (Obra.riesgoRetraso e historialRiesgo en una sola llamada; modeloRiesgo), consumos-atipicos.resolver.ts (403: Obra.consumosAtipicos; revisarConsumoAtipico con PUT /consumos-atipicos/{id}/revision sin reintento; ConsumoAtipico.material y revisadoPor), atipicos-tablero.resolver.ts (403: pendientes por fila e indicador, GET /consumos-atipicos/resumen en lotes de 100), reportes.resolver.ts (503: catalogoReportes y consultasReporte; consultarReporte con 60 s y directorio de clientes), agentes.resolver.ts (502: agentes, ejecucionesAgente, ejecucionAgente, hallazgos, sugerencias; solicitadaPor y decididaPor con Keycloak; Obra.hallazgos y Obra.sugerencias con DataLoader; ejecutarAgente, aprobarSugerencia y rechazarSugerencia sin reintento), agentes.ts (502: hallazgos de la ejecución con ejecucionId, agente y detectadoEn), supervision.module.ts
+    modelos/             riesgo.modelo.ts (NivelRiesgo, FactorRiesgo, RiesgoRetraso, PuntoRiesgo, ModeloRiesgo, ...), consumo-atipico.modelo.ts (ConsumoAtipico, EstadoRevision), reporte.modelo.ts (503: ConjuntoReporte, AtajoReporte, TipoColumna, ResultadoConsultaReporte, ConsultaReporte, ConsultaReporteCorta, CatalogoReportes, ...), agente.modelo.ts (502: Agente, TipoHallazgo, AccionSugerida, ..., AgenteInfo, EjecucionCorta, EjecucionAgente, PasoEjecucion, Hallazgo, Sugerencia)
 test/
   obras.e2e-spec.ts      GraphQL contra servicios simulados (servidores HTTP de prueba)
-  app.e2e-spec.ts        salud, token y reenvío de token y X-Request-Id
+  app.e2e-spec.ts        salud (GraphQL y GET /salud), token y reenvío de token y X-Request-Id
   obras.e2e-spec.ts      consulta obras: lista, filtros y Obras caído
   seguridad.e2e-spec.ts  encabezados, profundidad, límite de peticiones y Keycloak caído
-  soporte/               tokens-prueba.ts (claves RSA locales en lugar del JWKS de Keycloak)
+  roles.e2e-spec.ts      @Roles: NO_AUTENTICADO, SIN_PERMISO, regla del azp (demo1)
+  usuarios.e2e-spec.ts   usuarios(rol) contra un Keycloak simulado
+  registrar-obra.e2e-spec.ts  registrarObra y obra(id): reenvío a POST /obras, errores 422 → extensions.codigo, SIN_PERMISO, 404, Keycloak caído
+  materiales.e2e-spec.ts materiales, stockObra y mutaciones de la 003 contra un Materiales simulado: filtros y paginación, 409 CODIGO_MATERIAL_REPETIDO → extensions.codigo, 404/422, sin reintento en mutaciones, Materiales caído o lento, SIN_PERMISO
+  planillas.e2e-spec.ts  007: Obra.planillas, planilla(id) y mutaciones contra un Obras simulado; 008: Planilla.cobro por rol y con Finanzas caído
+  riesgo-retraso.e2e-spec.ts  402: tablero, obra y modelo contra Obras e IA simulados (lotes de 100, SIN_DATOS, IA caído o lento)
+  consumos-atipicos.e2e-spec.ts  403: Obra.consumosAtipicos, tablero y revisarConsumoAtipico contra Obras, Materiales, Keycloak e IA simulados
+  agentes.e2e-spec.ts    502: agentes, ejecuciones, hallazgos, sugerencias, Obra.hallazgos y Obra.sugerencias y mutaciones contra Obras, Keycloak e IA simulados (DataLoader, IA y Keycloak caídos, errores de IA, sin reintento en mutaciones, SIN_PERMISO)
+  reportes.e2e-spec.ts   503: catalogoReportes, consultasReporte y consultarReporte contra Keycloak e IA simulados (directorio de clientes, Keycloak caído, texto y atajo a la vez, errores de IA, IA lenta, [[String]!]!)
+  cobranza.e2e-spec.ts   201: registrarPagoCobro contra un Finanzas simulado (cuerpo, token, errores de Finanzas con su codigo, sin reintento, Finanzas lento, SIN_PERMISO)
+  tablero.e2e-spec.ts    009: tablero contra Obras, Materiales y Finanzas simulados (lote a Materiales en una sola llamada, cada servicio caído o lento)
+  consultar-obra.e2e-spec.ts  006: obras y obra(id) completos contra Obras, Materiales, Finanzas y Keycloak simulados (DataLoader, respuesta parcial, servicio lento); 301: Foto.deteccion con detección, null y sin el campo
+  soporte/               tokens-prueba.ts (claves RSA locales en lugar del JWKS de Keycloak), servicio-simulado.ts (servidor REST de prueba con demora configurable), entorno.ts (601: `setupFiles` de las e2e; direcciones de desarrollo para las que la prueba no simula, sin pisar el entorno)
 ```
 
 ## Reglas
@@ -39,9 +69,28 @@ test/
 - Los nombres de tipos y campos siguen exactamente `docs/contratos.md` (el SDL esperado).
 - Un `@ResolveField` por dato que viene de otro servicio, para que un fallo afecte solo a ese campo.
 - Todo acceso REST pasa por `cliente-servicio.ts`.
+- Configuración solo por variables (601): `OBRAS_URL`, `MATERIALES_URL`, `FINANZAS_URL`, `IA_URL` y `KEYCLOAK_URL` con `getOrThrow` (sin dirección por defecto: si falta una, no arranca); `CORS_ORIGENES` en `main.ts`. `NODE_ENV=production`: registros en JSON (`main.ts`), sin introspección ni Sandbox y sin trazas en los errores de Apollo. Una CA adicional (ensayo local) con `NODE_EXTRA_CA_CERTS`.
 - Archivos en `kebab-case` con sufijo (`.resolver.ts`, `.cliente.ts`, `.modelo.ts`, `.entrada.ts`).
 
 ## Pruebas
 
 - Unitarias de mapeos y del cliente HTTP (timeout, reintento, errores).
 - e2e con servicios simulados: caso feliz, servicio caído, servicio lento (> 3 s).
+
+## Imagen y CI (601)
+
+En la raíz del proyecto:
+
+```
+Dockerfile        dos etapas sobre node:24.22.0-alpine3.24: `construir` (npm ci, npm run build, npm prune --omit=dev y sin
+                  `typescript`, que queda solo como peer opcional de @nestjs/graphql) y `final` (package.json, node_modules de
+                  producción y dist; NODE_ENV=production, PORT=4000, usuario `node`, HEALTHCHECK con fetch a GET /salud,
+                  etiqueta OCI `org.opencontainers.image.source`; CMD node dist/main.js)
+.dockerignore     .git, node_modules, dist, .env*, *.log, coverage, test, docs y el resto de la lista común
+.github/workflows/ci.yml
+                  job `prueba` (npm ci, lint, tipos con tsc --noEmit, pruebas unitarias y e2e con servicios simulados,
+                  compilación) y job `imagen` (en PR: build sin publicar; en push a main: push a
+                  ghcr.io/jairovargasfigueroa/supervision-gateway con sha-<7> y main; caché de capas type=gha; solo GITHUB_TOKEN)
+```
+
+- Las pruebas no corren dentro del `docker build`: corren antes, en el workflow.

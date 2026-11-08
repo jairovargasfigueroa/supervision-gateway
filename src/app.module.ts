@@ -7,12 +7,23 @@ import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin
 import type { Request, Response } from 'express';
 import { Limitador } from './comun/auth/limitador.js';
 import { limitarConsultas } from './comun/graphql/limites.js';
+import { listasInternasNoNulas } from './comun/graphql/listas-anidadas.js';
 import { JwtGuard } from './comun/auth/jwt.guard.js';
-import { VERIFICADOR_TOKEN, VerificadorToken } from './comun/auth/verificador-token.js';
+import { RolesGuard } from './comun/auth/roles.guard.js';
+import {
+  VERIFICADOR_TOKEN,
+  VerificadorToken,
+} from './comun/auth/verificador-token.js';
 import { ComunModule } from './comun/comun.module.js';
 import { RequestIdMiddleware } from './comun/http/request-id.middleware.js';
+import { FinanzasModule } from './finanzas/finanzas.module.js';
+import { MaterialesModule } from './materiales/materiales.module.js';
 import { ObrasModule } from './obras/obras.module.js';
+import { PlanillasModule } from './planillas/planillas.module.js';
+import { SaludController } from './salud/salud.controller.js';
 import { SaludResolver } from './salud/salud.resolver.js';
+import { SupervisionModule } from './supervision/supervision.module.js';
+import { TableroModule } from './tablero/tablero.module.js';
 
 const enProduccion = process.env.NODE_ENV === 'production';
 
@@ -24,17 +35,30 @@ const enProduccion = process.env.NODE_ENV === 'production';
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       autoSchemaFile: true,
+      // 503: `[[String]!]!` del contrato (ConsultaReporte.filas), que code-first no puede declarar
+      transformSchema: listasInternasNoNulas(),
       // La petición (con su X-Request-Id, usuario y token) llega a guards y resolvers
-      context: ({ req, res }: { req: Request; res: Response }) => ({ req, res }),
+      context: ({ req, res }: { req: Request; res: Response }) => ({
+        req,
+        res,
+      }),
       // Convenciones, «Seguridad»: profundidad y complejidad máximas; introspección y Sandbox solo en desarrollo
       validationRules: [limitarConsultas()],
       introspection: !enProduccion,
       playground: false,
-      plugins: enProduccion ? [] : [ApolloServerPluginLandingPageLocalDefault()],
+      plugins: enProduccion
+        ? []
+        : [ApolloServerPluginLandingPageLocalDefault()],
     }),
     ComunModule,
     ObrasModule,
+    MaterialesModule,
+    FinanzasModule,
+    PlanillasModule,
+    TableroModule,
+    SupervisionModule,
   ],
+  controllers: [SaludController],
   providers: [
     SaludResolver,
     {
@@ -42,7 +66,7 @@ const enProduccion = process.env.NODE_ENV === 'production';
       inject: [ConfigService],
       useFactory: (config: ConfigService) =>
         VerificadorToken.desdeKeycloak(
-          config.get('KEYCLOAK_URL', 'http://localhost:8080'),
+          config.getOrThrow<string>('KEYCLOAK_URL'),
           config.get('KEYCLOAK_REALM', 'supervision'),
           'plataforma-api',
         ),
@@ -50,6 +74,8 @@ const enProduccion = process.env.NODE_ENV === 'production';
     // 120 peticiones por minuto por usuario (convenciones, «Seguridad»)
     { provide: Limitador, useValue: new Limitador(120) },
     { provide: APP_GUARD, useClass: JwtGuard },
+    // Después del token (los APP_GUARD corren en el orden en que se registran)
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule implements NestModule {

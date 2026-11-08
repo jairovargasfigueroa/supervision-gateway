@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { GraphQLError } from 'graphql';
 import type { ContextoGraphql } from '../auth/contexto.js';
-import { errorDesdeRespuesta, servicioNoDisponible, type Servicio } from './errores.js';
+import {
+  errorDesdeRespuesta,
+  servicioNoDisponible,
+  type Servicio,
+} from './errores.js';
 
 export interface OpcionesCliente {
   urls: Record<Servicio, string>;
@@ -9,9 +13,14 @@ export interface OpcionesCliente {
   tiempoMaximoMs: number;
 }
 
+/** Opciones de una llamada: solo para las excepciones que fija una spec (503: `consultarReporte`, 60 s). */
+export interface OpcionesLlamada {
+  tiempoMaximoMs?: number;
+}
+
 /**
  * Único camino del gateway a los servicios REST (docs/estructura.md): reenvía el token del usuario y el X-Request-Id,
- * corta a los 3 s, reintenta una vez las consultas (GET) y nunca las mutaciones, y traduce los errores a GraphQL.
+ * corta a los 3 s (salvo la excepción de una llamada, `OpcionesLlamada`), reintenta una vez las consultas (GET) y nunca las mutaciones, y traduce los errores a GraphQL.
  */
 @Injectable()
 export class ClienteServicio {
@@ -19,8 +28,20 @@ export class ClienteServicio {
 
   constructor(private readonly opciones: OpcionesCliente) {}
 
-  consultar<T>(servicio: Servicio, ruta: string, contexto: ContextoGraphql): Promise<T> {
-    return this.pedir<T>(servicio, 'GET', ruta, undefined, contexto, 2);
+  consultar<T>(
+    servicio: Servicio,
+    ruta: string,
+    contexto: ContextoGraphql,
+  ): Promise<T> {
+    return this.pedir<T>(
+      servicio,
+      'GET',
+      ruta,
+      undefined,
+      contexto,
+      2,
+      this.opciones.tiempoMaximoMs,
+    );
   }
 
   enviar<T>(
@@ -29,8 +50,17 @@ export class ClienteServicio {
     ruta: string,
     cuerpo: unknown,
     contexto: ContextoGraphql,
+    opciones: OpcionesLlamada = {},
   ): Promise<T> {
-    return this.pedir<T>(servicio, metodo, ruta, cuerpo, contexto, 1);
+    return this.pedir<T>(
+      servicio,
+      metodo,
+      ruta,
+      cuerpo,
+      contexto,
+      1,
+      opciones.tiempoMaximoMs ?? this.opciones.tiempoMaximoMs,
+    );
   }
 
   private async pedir<T>(
@@ -40,28 +70,39 @@ export class ClienteServicio {
     cuerpo: unknown,
     { req }: ContextoGraphql,
     intentos: number,
+    tiempoMaximoMs: number,
   ): Promise<T> {
-    const encabezados: Record<string, string> = { accept: 'application/json', 'x-request-id': req.requestId };
+    const encabezados: Record<string, string> = {
+      accept: 'application/json',
+      'x-request-id': req.requestId,
+    };
     if (req.token) encabezados['authorization'] = `Bearer ${req.token}`;
     if (cuerpo !== undefined) encabezados['content-type'] = 'application/json';
 
     for (let intento = 1; ; intento++) {
       try {
-        const respuesta = await fetch(`${this.opciones.urls[servicio]}${ruta}`, {
-          method: metodo,
-          headers: encabezados,
-          body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
-          signal: AbortSignal.timeout(this.opciones.tiempoMaximoMs),
-        });
+        const respuesta = await fetch(
+          `${this.opciones.urls[servicio]}${ruta}`,
+          {
+            method: metodo,
+            headers: encabezados,
+            body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
+            signal: AbortSignal.timeout(tiempoMaximoMs),
+          },
+        );
         if (respuesta.ok) {
-          return (respuesta.status === 204 ? undefined : await respuesta.json()) as T;
+          return (
+            respuesta.status === 204 ? undefined : await respuesta.json()
+          ) as T;
         }
         if (respuesta.status >= 500 && intento < intentos) continue;
         throw await errorDesdeRespuesta(respuesta, servicio);
       } catch (error) {
         if (error instanceof GraphQLError) throw error;
         if (intento < intentos) continue;
-        this.registro.warn(`[${req.requestId}] ${servicio} no respondió: ${metodo} ${ruta} (${(error as Error).name})`);
+        this.registro.warn(
+          `[${req.requestId}] ${servicio} no respondió: ${metodo} ${ruta} (${(error as Error).name})`,
+        );
         throw servicioNoDisponible(servicio);
       }
     }

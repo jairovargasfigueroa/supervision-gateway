@@ -54,7 +54,9 @@ function medir(
 }
 
 function demasiado(mensaje: string): GraphQLError {
-  return new GraphQLError(mensaje, { extensions: { codigo: 'DATOS_INVALIDOS', servicio: 'gateway', estado: 400 } });
+  return new GraphQLError(mensaje, {
+    extensions: { codigo: 'DATOS_INVALIDOS', servicio: 'gateway', estado: 400 },
+  });
 }
 
 /** Regla de validación de GraphQL que rechaza consultas demasiado profundas o con demasiados campos. */
@@ -65,16 +67,29 @@ export function limitarConsultas(
   return (contexto: ValidationContext): ASTVisitor => {
     const fragmentos: Record<string, FragmentDefinitionNode> = {};
     for (const definicion of contexto.getDocument().definitions) {
-      if (definicion.kind === Kind.FRAGMENT_DEFINITION) fragmentos[definicion.name.value] = definicion;
+      if (definicion.kind === Kind.FRAGMENT_DEFINITION)
+        fragmentos[definicion.name.value] = definicion;
     }
     return {
       OperationDefinition(operacion) {
-        const { profundidad, campos } = medir(operacion.selectionSet, fragmentos, new Set());
+        const { profundidad, campos } = medir(
+          operacion.selectionSet,
+          fragmentos,
+          new Set(),
+        );
         if (profundidad > profundidadMaxima) {
-          contexto.reportError(demasiado(`La consulta pasa la profundidad máxima (${profundidadMaxima}).`));
+          contexto.reportError(
+            demasiado(
+              `La consulta pasa la profundidad máxima (${profundidadMaxima}).`,
+            ),
+          );
         }
         if (campos > complejidadMaxima) {
-          contexto.reportError(demasiado(`La consulta pasa la complejidad máxima (${complejidadMaxima}).`));
+          contexto.reportError(
+            demasiado(
+              `La consulta pasa la complejidad máxima (${complejidadMaxima}).`,
+            ),
+          );
         }
       },
     };

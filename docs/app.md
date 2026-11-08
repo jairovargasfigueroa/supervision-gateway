@@ -13,7 +13,7 @@
 | Área | Servicio detrás | Etapa |
 |---|---|---|
 | Obras, partidas, avance, planillas | Obras | Base |
-| Contratos y cobros | Finanzas | Base |
+| Contratos y cobros (y registro de pago, 201) | Finanzas | Base y capa 2 |
 | Catálogo, stock, consumos | Materiales | Base |
 | Tablero | Obras, Materiales, Finanzas | Base |
 | Agentes, sugerencias, reportes por voz, predicciones | IA | Capas 4 y 5 |

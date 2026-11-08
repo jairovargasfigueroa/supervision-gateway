@@ -1,11 +1,20 @@
-import { CanActivate, ExecutionContext, Inject, Injectable } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { GqlExecutionContext } from '@nestjs/graphql';
 import { GraphQLError } from 'graphql';
 import type { ContextoGraphql } from './contexto.js';
 import { ES_PUBLICO } from './publico.decorator.js';
 import { Limitador } from './limitador.js';
-import { ClavesNoDisponiblesError, VERIFICADOR_TOKEN, VerificadorToken } from './verificador-token.js';
+import {
+  ClavesNoDisponiblesError,
+  VERIFICADOR_TOKEN,
+  VerificadorToken,
+} from './verificador-token.js';
 
 /**
  * Guard global: toda consulta o mutación exige un token válido de Keycloak, salvo las marcadas con @Publico().
@@ -26,7 +35,8 @@ export class JwtGuard implements CanActivate {
     ]);
     if (esPublico || contexto.getType<string>() !== 'graphql') return true;
 
-    const { req, res } = GqlExecutionContext.create(contexto).getContext<ContextoGraphql>();
+    const { req, res } =
+      GqlExecutionContext.create(contexto).getContext<ContextoGraphql>();
     if (!req.usuario) {
       const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1];
       if (!token) throw noAutenticado();
@@ -35,7 +45,8 @@ export class JwtGuard implements CanActivate {
         req.token = token;
       } catch (error) {
         // Keycloak caído: no se cierra la sesión del usuario por una falla del servidor
-        if (error instanceof ClavesNoDisponiblesError) throw keycloakNoDisponible();
+        if (error instanceof ClavesNoDisponiblesError)
+          throw keycloakNoDisponible();
         throw noAutenticado();
       }
       // Se cuenta una vez por petición HTTP, aunque traiga varias consultas
@@ -57,12 +68,20 @@ function noAutenticado(): GraphQLError {
 
 function keycloakNoDisponible(): GraphQLError {
   return new GraphQLError('No se pudo validar el token: Keycloak no responde', {
-    extensions: { codigo: 'SERVICIO_NO_DISPONIBLE', servicio: 'keycloak', estado: 503 },
+    extensions: {
+      codigo: 'SERVICIO_NO_DISPONIBLE',
+      servicio: 'keycloak',
+      estado: 503,
+    },
   });
 }
 
 function demasiadasPeticiones(): GraphQLError {
   return new GraphQLError('Demasiadas peticiones', {
-    extensions: { codigo: 'DEMASIADAS_PETICIONES', servicio: 'gateway', estado: 429 },
+    extensions: {
+      codigo: 'DEMASIADAS_PETICIONES',
+      servicio: 'gateway',
+      estado: 429,
+    },
   });
 }

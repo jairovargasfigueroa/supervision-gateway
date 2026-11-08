@@ -4,7 +4,7 @@ Gateway GraphQL de la plataforma: la **única** entrada del ERP (BFF). Recibe la
 
 Parte de la «Plataforma de supervisión de obras». Si existe `../CLAUDE.md` (carpeta que agrupa todos los proyectos), léelo primero: tiene las reglas transversales, el plan y los contratos generales.
 
-**Estado:** fase 1. Valida el token de Keycloak (guard global), reenvía token y `X-Request-Id` con tiempo máximo de 3 s (`comun/`). Consultas: `salud` (sin token) y `obras` (esqueleto que camina de la 1.10; Obras devuelve la lista vacía hasta la 006). No implementes una funcionalidad sin su especificación aprobada en `docs/specs/`.
+**Estado:** fase 1. Valida el token de Keycloak (guard global), reenvía token y `X-Request-Id` con tiempo máximo de 3 s (`comun/`). Consultas: `salud` (sin token), `usuarios(rol)` (002), `obras(estado, busqueda)` y `obra(id)` completos (006: asignaciones con caché de 5 min, `Insumo.material`, `finanzas` y `cobros` solo para `admin` y `gerente`, `materialComparado(periodo)` y `fotos` de la 005, con DataLoader por petición y respuesta parcial). Planillas (007): `Obra.planillas`, `planilla(id)` y mutaciones `crearPlanilla`, `guardarPlanilla` y `presentarPlanilla`. `tablero` (009): indicadores y filas resueltos por separado, materiales bajos en un solo lote a Materiales y cobros vencidos solo para `admin` y `gerente`. Mutación: `registrarObra` (002). Materiales (003): consultas `materiales` (paginada) y `stockObra`, mutaciones `crearMaterial`, `actualizarMaterial` y `definirStockMinimo`. Capa 4: `zona` de la obra (401); riesgo de retraso del servicio de IA (402: `FilaTablero.riesgoRetraso` e `IndicadoresTablero.obrasRiesgoAlto` en lotes de 100, `Obra.riesgoRetraso`, `Obra.historialRiesgo` y `modeloRiesgo`); consumos atípicos (403: `Obra.consumosAtipicos`, pendientes por fila e indicador del tablero en lotes de 100 y mutación `revisarConsumoAtipico`). Capa 2: cobranza automática (201: `PAGADO`, `Cobro.pagadoEn`, `comprobante` y `envios`, mutación `registrarPagoCobro` solo para `admin`). Capa 3: `Foto.deteccion` (301, detección de casco y chaleco). Capa 5: constructor de reportes (503: `catalogoReportes`, `consultasReporte` y `consultarReporte` con 60 s y el directorio de clientes de Keycloak) y agentes (502: `agentes`, `ejecucionesAgente`, `ejecucionAgente`, `hallazgos`, `sugerencias`, `Obra.hallazgos`, `Obra.sugerencias` y mutaciones `ejecutarAgente`, `aprobarSugerencia` y `rechazarSugerencia`). No implementes una funcionalidad sin su especificación aprobada en `docs/specs/`.
 
 ## Stack
 
@@ -26,6 +26,13 @@ npm run build
 ```
 
 Configuración local: copiar `.env.example` a `.env`. **`.env` nunca se sube.**
+
+## Despliegue (601)
+
+- Imagen: `Dockerfile` en dos etapas (`construir` con `npm ci`, `npm run build` y `npm prune --omit=dev`; `final` con `node dist/main.js`, usuario `node`, `HEALTHCHECK` contra `GET /salud`, puerto 4000). La imagen no trae configuración: todo entra por variables al arrancar.
+- Modo producción: `NODE_ENV=production` (registros en JSON, sin introspección ni Apollo Sandbox, sin trazas en los errores). `OBRAS_URL`, `MATERIALES_URL`, `FINANZAS_URL`, `IA_URL` y `KEYCLOAK_URL` son obligatorias (sin valor por defecto en el código); `CORS_ORIGENES` con el origen del shell publicado. Una CA adicional (ensayo local) entra con `NODE_EXTRA_CA_CERTS`, sin cambiar el código.
+- `GET /salud` (REST, sin token, `200 {"estado":"ok"}`, convenciones) para el `HEALTHCHECK` y la prueba de humo; la consulta GraphQL `{ salud }` sigue igual.
+- CI: `.github/workflows/ci.yml`; en cada *pull request* a `develop` o `main`, lint, tipos, pruebas unitarias y e2e, compilación y la imagen sin publicar; en *push* a `main`, publica `ghcr.io/jairovargasfigueroa/supervision-gateway` con `sha-<7>` y `main`.
 
 ## Estructura
 

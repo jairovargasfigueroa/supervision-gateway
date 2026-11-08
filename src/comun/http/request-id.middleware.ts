@@ -12,7 +12,9 @@ export class RequestIdMiddleware implements NestMiddleware {
   use(req: PeticionGateway, res: Response, next: NextFunction): void {
     const recibido = req.headers[ENCABEZADO_REQUEST_ID];
     req.requestId =
-      typeof recibido === 'string' && VALOR_VALIDO.test(recibido) ? recibido : randomUUID();
+      typeof recibido === 'string' && VALOR_VALIDO.test(recibido)
+        ? recibido
+        : randomUUID();
     res.setHeader('X-Request-Id', req.requestId);
     // Encabezados de seguridad de las convenciones («Seguridad»)
     res.setHeader('X-Content-Type-Options', 'nosniff');

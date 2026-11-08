@@ -6,9 +6,12 @@ const esquema = buildSchema(`
   type Query { nodo: Nodo }
 `);
 
-const anidada = (niveles: number) => `{ nodo ${'{ hijo '.repeat(niveles - 1)}{ id }${' }'.repeat(niveles - 1)} }`;
+const anidada = (niveles: number) =>
+  `{ nodo ${'{ hijo '.repeat(niveles - 1)}{ id }${' }'.repeat(niveles - 1)} }`;
 const errores = (consulta: string, profundidad = 8, complejidad = 1000) =>
-  validate(esquema, parse(consulta), [limitarConsultas(profundidad, complejidad)]);
+  validate(esquema, parse(consulta), [
+    limitarConsultas(profundidad, complejidad),
+  ]);
 
 describe('limitarConsultas', () => {
   it('acepta una consulta dentro de la profundidad máxima', () => {

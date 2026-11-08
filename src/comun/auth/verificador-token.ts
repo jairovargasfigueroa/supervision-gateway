@@ -1,4 +1,9 @@
-import { createRemoteJWKSet, errors, jwtVerify, type JWTVerifyGetKey } from 'jose';
+import {
+  createRemoteJWKSet,
+  errors,
+  jwtVerify,
+  type JWTVerifyGetKey,
+} from 'jose';
 
 /** Datos del usuario que salen del token de Keycloak. */
 export interface UsuarioToken {
@@ -23,21 +28,31 @@ export class VerificadorToken {
     private readonly audiencia: string,
   ) {}
 
-  static desdeKeycloak(keycloakUrl: string, realm: string, audiencia: string): VerificadorToken {
+  static desdeKeycloak(
+    keycloakUrl: string,
+    realm: string,
+    audiencia: string,
+  ): VerificadorToken {
     const emisor = `${keycloakUrl}/realms/${realm}`;
-    const claves = createRemoteJWKSet(new URL(`${emisor}/protocol/openid-connect/certs`));
+    const claves = createRemoteJWKSet(
+      new URL(`${emisor}/protocol/openid-connect/certs`),
+    );
     return new VerificadorToken(claves, emisor, audiencia);
   }
 
   async verificar(token: string): Promise<UsuarioToken> {
     let payload;
     try {
-      ({ payload } = await jwtVerify(token, this.claves, { issuer: this.emisor, audience: this.audiencia }));
+      ({ payload } = await jwtVerify(token, this.claves, {
+        issuer: this.emisor,
+        audience: this.audiencia,
+      }));
     } catch (error) {
       if (esFallaAlObtenerClaves(error)) throw new ClavesNoDisponiblesError();
       throw error;
     }
-    const accesoRealm = payload['realm_access'] as { roles?: string[] } | undefined;
+    const accesoRealm = payload['realm_access'] as
+      { roles?: string[] } | undefined;
     return {
       id: payload.sub ?? '',
       nombre: typeof payload['name'] === 'string' ? payload['name'] : '',
@@ -58,6 +73,9 @@ export class ClavesNoDisponiblesError extends Error {
 /** Error de red, tiempo agotado o respuesta distinta de 200 al pedir el JWKS. */
 export function esFallaAlObtenerClaves(error: unknown): boolean {
   if (error instanceof errors.JWKSTimeout) return true;
-  if (error instanceof errors.JOSEError) return error.message.startsWith('Expected 200 OK from the JSON Web Key Set');
+  if (error instanceof errors.JOSEError)
+    return error.message.startsWith(
+      'Expected 200 OK from the JSON Web Key Set',
+    );
   return error instanceof Error;
 }

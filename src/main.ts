@@ -1,9 +1,13 @@
+import { ConsoleLogger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    // Registros en JSON en producción y en texto legible en desarrollo (convenciones, 601)
+    logger: new ConsoleLogger({ json: process.env.NODE_ENV === 'production' }),
+  });
   // Cuerpo JSON de hasta 1 MB (convenciones, «Seguridad»)
   app.useBodyParser('json', { limit: '1mb' });
   app.disable('x-powered-by');

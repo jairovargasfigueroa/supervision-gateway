@@ -4,4 +4,4 @@ Requisitos y diseño: `docs/specs/005-foto-avance/` de la carpeta que agrupa los
 
 Marca cada tarea al terminarla (con sus pruebas y su commit).
 
-- [ ] Campo `Obra.fotos(partidaId)` con `registradoPor` resuelto desde Keycloak
+- [x] Campo `Obra.fotos(partidaId)` con `registradoPor` resuelto desde Keycloak

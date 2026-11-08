@@ -1,4 +1,10 @@
-import { Field, Float, ID, ObjectType, registerEnumType } from '@nestjs/graphql';
+import {
+  Field,
+  Float,
+  ID,
+  ObjectType,
+  registerEnumType,
+} from '@nestjs/graphql';
 
 // Tipos de docs/contratos.md (SDL esperado): mismos nombres que el JSON de Obras.
 
@@ -8,6 +14,16 @@ export enum EstadoObra {
   CONCLUIDA = 'CONCLUIDA',
 }
 registerEnumType(EstadoObra, { name: 'EstadoObra' });
+
+/** 401: zona de la obra (decisión del equipo). Opcional: null = sin zona. */
+export enum ZonaObra {
+  NORTE = 'NORTE',
+  SUR = 'SUR',
+  ESTE = 'ESTE',
+  OESTE = 'OESTE',
+  CENTRO = 'CENTRO',
+}
+registerEnumType(ZonaObra, { name: 'ZonaObra' });
 
 export enum EstadoPlanilla {
   BORRADOR = 'BORRADOR',
@@ -37,6 +53,10 @@ export class ObraResumen {
 
   @Field()
   ubicacion: string;
+
+  /** 401: tal cual la devuelve Obras (null = sin zona). */
+  @Field(() => ZonaObra, { nullable: true })
+  zona?: ZonaObra | null;
 
   @Field(() => EstadoObra)
   estado: EstadoObra;

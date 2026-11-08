@@ -11,20 +11,22 @@ enum Rol { admin residente gerente maestro almacenero cliente }
 enum EstadoObra { SIN_CONTRATO EN_EJECUCION CONCLUIDA }
 enum EstadoPlanilla { BORRADOR PRESENTADA APROBANDO APROBADA OBSERVADA }
 enum EstadoStock { BAJO JUSTO OK }
-enum EstadoCobro { PENDIENTE VENCIDO }
+enum EstadoCobro { PENDIENTE VENCIDO PAGADO }   # PAGADO: 201
+enum TipoEnvioCobro { NOTA_COBRO RECORDATORIO_POR_VENCER RECORDATORIO_VENCIDO CONSTANCIA_PAGO }   # 201
 enum TipoMaterial { CEMENTO ACERO AGREGADO LADRILLO MADERA ELECTRICO SANITARIO PINTURA OTRO }
+enum ZonaObra { NORTE SUR ESTE OESTE CENTRO }   # 401
 
 type Usuario { id: ID! nombre: String! correo: String }
 
 type ObraResumen {
-  id: ID! nombre: String! ubicacion: String! estado: EstadoObra! fechaInicio: String!
+  id: ID! nombre: String! ubicacion: String! zona: ZonaObra estado: EstadoObra! fechaInicio: String!   # zona: 401, tal cual Obras (null = sin zona)
   avancePct: Float! plazoPct: Float! enRiesgo: Boolean!
   ultimaPlanilla: PlanillaCorta
 }
 type PlanillaCorta { periodo: String! estado: EstadoPlanilla! }
 
 type Obra {
-  id: ID! nombre: String! ubicacion: String! estado: EstadoObra! fechaInicio: String!
+  id: ID! nombre: String! ubicacion: String! zona: ZonaObra estado: EstadoObra! fechaInicio: String!   # zona: 401
   motivoRechazoContrato: String
   residente: Usuario  maestro: Usuario  almacenero: Usuario  cliente: Usuario
   contrato: ContratoObra!
@@ -35,6 +37,11 @@ type Obra {
   fotos(partidaId: ID, pagina: Int = 1, tamano: Int = 50): FotosPagina!
   planillas: [PlanillaResumen!]!
   cobros: [Cobro!]                  # Finanzas (pide tamano=100); null sin error si el rol no es admin ni gerente
+  riesgoRetraso: RiesgoRetraso      # 402 · IA; null con SERVICIO_NO_DISPONIBLE si no responde
+  historialRiesgo(limite: Int = 30): [PuntoRiesgo!]   # 402 · IA (misma llamada que riesgoRetraso)
+  consumosAtipicos(estado: EstadoRevision): [ConsumoAtipico!]   # 403 · IA; null con SERVICIO_NO_DISPONIBLE si no responde
+  hallazgos(agente: Agente): [Hallazgo!]                         # 502 · IA; null con SERVICIO_NO_DISPONIBLE si no responde
+  sugerencias(estado: EstadoSugerencia): [Sugerencia!]           # 502 · IA; null con SERVICIO_NO_DISPONIBLE si no responde
 }
 type ContratoObra { contratoId: ID monto: Float! plazoDias: Int! anticipoPct: Float! retencionPct: Float! }
 type Partida {
@@ -53,7 +60,8 @@ type FilaComparacion {
 }
 
 type FotosPagina { items: [Foto!]! total: Int! pagina: Int! tamano: Int! }
-type Foto { id: ID! partidaId: ID! registradoPor: Usuario registradoEn: String! publicadaCliente: Boolean! urlDescarga: String! }
+type Foto { id: ID! partidaId: ID! registradoPor: Usuario registradoEn: String! publicadaCliente: Boolean! urlDescarga: String! deteccion: DeteccionEpp }   # deteccion: 301
+type DeteccionEpp { personas: Int! sinCasco: Int! sinChaleco: Int! versionModelo: String! }   # 301: tal cual desde GET /obras/{id}/fotos; null si no se analizó (siempre null para cliente, lo decide Obras)
 
 type PlanillaResumen { id: ID! numero: Int! periodo: String! estado: EstadoPlanilla! neto: Float! cobroNumero: String }   # cobroNumero: 008, de Obras
 type Planilla {
@@ -82,19 +90,128 @@ type StockMaterial {
   cantidad: Float! minimo: Float! estado: EstadoStock!
 }
 
-type Cobro { id: ID! numero: String! planillaId: ID! montoNeto: Float! emitidoEn: String! venceEn: String! estado: EstadoCobro! }
+type Cobro {
+  id: ID! numero: String! planillaId: ID! montoNeto: Float! emitidoEn: String! venceEn: String! estado: EstadoCobro!
+  pagadoEn: String comprobante: String envios: [EnvioCobro!]!   # 201 · tal cual Finanzas (null si no está pagado o sin comprobante)
+}
+type EnvioCobro { tipo: TipoEnvioCobro! destinatario: String! enviadoEn: String! }   # 201 · ordenados por enviadoEn (Finanzas)
 type CobroPlanilla { id: ID! numero: String! montoNeto: Float emitidoEn: String venceEn: String estado: EstadoCobro }   # 008 · id y numero: Obras; el resto: Finanzas, null sin error si el rol no es admin ni gerente
 
 type Tablero { indicadores: IndicadoresTablero obras: [FilaTablero!] }
 type IndicadoresTablero {
   obrasEnEjecucion: Int  obrasEnRiesgo: Int  materialesBajos: Int
   cobrosVencidos: ResumenMonto       # null sin error si el rol no es admin ni gerente
+  obrasRiesgoAlto: Int               # 402 · IA (mismo lote que las filas); null si no responde
+  consumosAtipicosPendientes: Int    # 403 · IA (suma del mismo lote que las filas); null si no responde
 }
 type ResumenMonto { cantidad: Int! monto: Float! }
 type FilaTablero {
   obraId: ID! nombre: String! avancePct: Float! plazoPct: Float! diferencia: Float! enRiesgo: Boolean!
   materialesBajos: Int               # Materiales; null si no responde
   ultimaPlanilla: PlanillaCorta
+  riesgoRetraso: RiesgoRetraso       # 402 · IA, en lotes de hasta 100 obras; null si no responde
+  consumosAtipicosPendientes: Int    # 403 · IA, en lotes de hasta 100 obras; null si no responde
+}
+
+# 402 · riesgo de retraso (servicio de IA)
+enum NivelRiesgo { BAJO MEDIO ALTO SIN_DATOS }
+type FactorRiesgo { variable: String! descripcion: String! peso: Float! }
+type RiesgoRetraso {
+  probabilidad: Float  nivel: NivelRiesgo!  factores: [FactorRiesgo!]!
+  versionModelo: String  calculadaEn: String
+}
+type PuntoRiesgo { probabilidad: Float! calculadaEn: String! }
+type MetricasModeloRiesgo { aucRoc: Float! aucRocRegla: Float! recallMedio: Float! precisionAlto: Float! brier: Float! }
+type VariableModelo { nombre: String! descripcion: String! }
+type ModeloRiesgo {
+  versionModelo: String! entrenadoEn: String! datos: String! filasEntrenamiento: Int!   # datos: SINTETICOS o REALES, tal cual IA
+  metricas: MetricasModeloRiesgo! umbralMedio: Float! umbralAlto: Float! variables: [VariableModelo!]!
+}
+
+# 403 · consumos atípicos (servicio de IA)
+enum EstadoRevision { PENDIENTE NORMAL CONFIRMADO }
+type ConsumoAtipico {
+  id: ID! movimientoId: ID! obraId: ID!
+  materialId: ID! material: Material          # Materiales (catálogo, una vez por petición)
+  partidaId: ID! cantidad: Float! periodo: String! registradoEn: String!
+  puntaje: Float! motivos: [String!]!
+  estadoRevision: EstadoRevision!
+  revisadoPor: Usuario                        # Keycloak (caché de 5 min, 006)
+  revisadoEn: String comentario: String versionModelo: String!
+}
+
+# 503 · constructor de reportes (servicio de IA)
+enum ConjuntoReporte { OBRAS CONSUMO_MATERIAL MOVIMIENTOS COBROS PLANILLAS CONSUMOS_ATIPICOS }
+enum AtajoReporte {
+  AVANCE_OBRAS OBRAS_EN_RIESGO CONSUMO_MATERIAL_MES SALIDAS_SIN_STOCK COBROS_VENCIDOS
+  COBROS_POR_VENCER COBRADO_POR_OBRA PLANILLAS_OBSERVADAS PLANILLAS_APROBADAS CONSUMOS_ATIPICOS_PENDIENTES
+}
+enum TipoColumna { TEXTO NUMERO MONTO PORCENTAJE FECHA BOOLEANO }
+enum ResultadoConsultaReporte { OK NO_RECONOCIDA RECETA_INVALIDA ERROR }
+type ColumnaReporte { clave: String! titulo: String! tipo: TipoColumna! }
+type ElementoAplicado { nombre: String! valor: String! }
+type ConsultaReporte {
+  id: ID! texto: String atajo: AtajoReporte conjunto: ConjuntoReporte! tituloConjunto: String!
+  aplicado: [ElementoAplicado!]! resumen: String! resumenPlantilla: Boolean! avisos: [String!]!
+  columnas: [ColumnaReporte!]! filas: [[String]!]! totalFilas: Int! truncado: Boolean! creadaEn: String!
+}
+type ConsultaReporteCorta {
+  id: ID! texto: String atajo: AtajoReporte conjunto: ConjuntoReporte resultado: ResultadoConsultaReporte!
+  resumen: String totalFilas: Int creadaEn: String!
+}
+type ConjuntoDisponible {
+  conjunto: ConjuntoReporte! titulo: String! descripcion: String!
+  columnas: [ColumnaReporte!]! filtros: [String!]! agrupaciones: [String!]! ejemplos: [String!]!
+}
+type AtajoDisponible { atajo: AtajoReporte! titulo: String! descripcion: String! }
+type CatalogoReportes { conjuntos: [ConjuntoDisponible!]! atajos: [AtajoDisponible!]! }
+
+# 502 · agentes en el ERP (servicio de IA)
+enum Agente { SEGUIMIENTO_OBRAS CONTROL_MATERIALES CONTROL_COBROS }
+enum OrigenEjecucion { PROGRAMADA MANUAL }
+enum EstadoEjecucion { EN_CURSO TERMINADA FALLIDA }
+enum EstadoSugerencia { PENDIENTE APROBADA RECHAZADA }
+enum Severidad { ALTA MEDIA BAJA }
+enum TipoHallazgo {
+  ATRASO RIESGO_DE_ATRASO SIN_REGISTRO_DIARIO PLANILLA_PENDIENTE
+  STOCK_BAJO STOCK_JUSTO CONSUMO_EXCEDIDO SALIDA_SIN_STOCK CONSUMO_ATIPICO
+  COBRO_VENCIDO COBRO_POR_VENCER PLANILLA_SIN_RESPUESTA PLANILLA_OBSERVADA_SIN_CORREGIR
+}
+enum AccionSugerida {
+  REVISAR_PROGRAMA_OBRA PROGRAMAR_VISITA SOLICITAR_INFORME_RESIDENTE COMPLETAR_DIARIO_OBRA
+  VERIFICAR_INVENTARIO REVISAR_CONSUMO_PARTIDA EVALUAR_REPOSICION REVISAR_SALIDAS_SIN_STOCK REVISAR_CONSUMO_ATIPICO
+  CONTACTAR_CLIENTE_COBRO RECORDAR_REVISION_PLANILLA CORREGIR_PLANILLA_OBSERVADA REVISAR_SALDO_CONTRATO
+}
+type AgenteInfo {
+  agente: Agente! nombre: String! mision: String! herramientas: [String!]!
+  ultimaEjecucion: EjecucionCorta  sugerenciasPendientes: Int!
+}
+type EjecucionCorta {
+  id: ID! agente: Agente! origen: OrigenEjecucion! estado: EstadoEjecucion!
+  iniciadaEn: String! terminadaEn: String cantidadHallazgos: Int!
+}
+type EjecucionAgente {
+  id: ID! agente: Agente! origen: OrigenEjecucion! estado: EstadoEjecucion!
+  solicitadaPor: Usuario iniciadaEn: String! terminadaEn: String proveedorLlm: String! modelo: String!   # solicitadaPor: Keycloak (caché de 5 min, 006)
+  resumen: String error: ErrorEjecucion
+  pasos: [PasoEjecucion!]! hallazgos: [Hallazgo!]!
+}
+type ErrorEjecucion { codigo: String! mensaje: String! }
+type PasoEjecucion {
+  numero: Int! servidor: String! herramienta: String! argumentos: String! resultadoResumen: String!   # servidor: obras, materiales, finanzas o ia
+  en: String! duracionMs: Int! error: String
+}
+type Hallazgo {
+  ejecucionId: ID! agente: Agente! obraId: ID! obraNombre: String!
+  tipo: TipoHallazgo! severidad: Severidad! situacion: String! causaProbable: String!
+  evidencia: [Evidencia!]! detectadoEn: String!
+}
+type Evidencia { herramienta: String! dato: String! }
+type Sugerencia {
+  id: ID! ejecucionId: ID! agente: Agente! obraId: ID! obraNombre: String!
+  accion: AccionSugerida! accionTexto: String! descripcion: String!
+  estado: EstadoSugerencia! creadaEn: String!
+  decididaPor: Usuario decididaEn: String comentario: String   # decididaPor: Keycloak (caché de 5 min, 006)
 }
 
 input AsignacionesEntrada { residenteId: ID! maestroId: ID! almaceneroId: ID! clienteId: ID! }
@@ -105,7 +222,7 @@ input PartidaEntrada {
   meses: String insumos: [InsumoEntrada!]
 }
 input RegistrarObraEntrada {
-  nombre: String! ubicacion: String! fechaInicio: String!
+  nombre: String! ubicacion: String! zona: ZonaObra fechaInicio: String!   # zona: 401, opcional; Obras valida (400, campo zona)
   asignaciones: AsignacionesEntrada! contrato: ContratoEntrada! partidas: [PartidaEntrada!]!
 }
 input AtributoEntrada { nombre: String! valor: String! }
@@ -125,6 +242,14 @@ type Query {
   materiales(busqueda: String, soloActivos: Boolean, pagina: Int = 1, tamano: Int = 20): MaterialesPagina!   # 003 · admin, gerente, residente
   stockObra(obraId: ID!): [StockMaterial!]!                          # 003 · admin, gerente, residente (sus obras)
   tablero: Tablero!                                                  # 009 · admin, gerente, residente (sus obras)
+  modeloRiesgo: ModeloRiesgo                                         # 402 · admin, gerente, residente (IA)
+  catalogoReportes: CatalogoReportes!                                # 503 · admin, gerente (IA)
+  consultasReporte(limite: Int): [ConsultaReporteCorta!]!            # 503 · admin, gerente (IA)
+  agentes: [AgenteInfo!]!                                            # 502 · admin, gerente, residente (sin CONTROL_COBROS: lo aplica IA)
+  ejecucionesAgente(agente: Agente, estado: EstadoEjecucion, limite: Int): [EjecucionCorta!]!   # 502 · admin, gerente
+  ejecucionAgente(id: ID!): EjecucionAgente                          # 502 · admin, gerente
+  hallazgos(agente: Agente, obraId: ID): [Hallazgo!]!                # 502 · admin, gerente, residente (sus obras, sin CONTROL_COBROS)
+  sugerencias(estado: EstadoSugerencia, agente: Agente, obraId: ID, limite: Int): [Sugerencia!]!   # 502 · admin, gerente, residente (sus obras, sin CONTROL_COBROS)
 }
 
 type Mutation {
@@ -135,10 +260,76 @@ type Mutation {
   crearPlanilla(obraId: ID!, periodo: String!): Planilla!                    # 007 · residente asignado
   guardarPlanilla(id: ID!, entrada: GuardarPlanillaEntrada!): Planilla!      # 007 · residente asignado
   presentarPlanilla(id: ID!, version: Int!): Planilla!                       # 007 · residente asignado
+  revisarConsumoAtipico(id: ID!, estado: EstadoRevision!, comentario: String): ConsumoAtipico!   # 403 · admin, residente (asignado: lo valida IA)
+  consultarReporte(texto: String, atajo: AtajoReporte): ConsultaReporte!     # 503 · admin, gerente (IA, 60 s)
+  ejecutarAgente(agente: Agente!): EjecucionCorta!                           # 502 · admin, gerente
+  aprobarSugerencia(id: ID!, comentario: String): Sugerencia!                # 502 · admin, gerente, residente (sus obras, sin CONTROL_COBROS)
+  rechazarSugerencia(id: ID!, motivo: String!): Sugerencia!                  # 502 · admin, gerente, residente (sus obras, sin CONTROL_COBROS)
+  registrarPagoCobro(cobroId: ID!, pagadoEn: String!, comprobante: String): Cobro!   # 201 · admin
 }
 ```
 
-Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, reportes por voz) en sus especificaciones.
+### Cómo se resuelven los campos de `Obra` (006)
+
+- `residente`, `maestro`, `almacenero`, `cliente` y `Foto.registradoPor`: Keycloak (`GET /admin/realms/supervision/users/{id}`), con caché en memoria de 5 minutos por usuario (no se guardan los desconocidos ni los errores) y DataLoader por petición.
+- `Insumo.material` y `FilaComparacion.material`: catálogo de Materiales (`GET /materiales`, de a 100 y todas las páginas, activos e inactivos), pedido una sola vez por petición.
+- `finanzas`: `GET /contratos?obraId=`; `null` sin error si el rol efectivo no es `admin` ni `gerente` (no se llama a Finanzas) o si la obra todavía no tiene contrato en Finanzas.
+- `cobros`: `GET /cobros?obraId=&tamano=100` (solo la primera página); `null` sin error si el rol efectivo no es `admin` ni `gerente`.
+- `materialComparado(periodo)`: `GET /obras/{id}/material-previsto?periodo=` (Obras) + `GET /obras/{id}/consumos?periodo=` (Materiales) + catálogo. Una fila por cada par partida–material que aparece en el previsto o en los consumos (lo que falta de un lado cuenta 0). `diferencia = usado − previsto` (positiva: se usó más de lo previsto); `excedido = usado > 1,20 × previsto` (calculado en milésimas, sin errores de redondeo; con previsto 0, cualquier uso queda excedido). Orden: el de las partidas de la obra y, dentro de cada una, por código de material. Si Obras o Materiales falla, el campo vuelve `null` con el error de ese servicio.
+- `planillas` (007): `GET /obras/{id}/planillas` (Obras), con DataLoader de la petición; `cobroNumero` tal como lo guarda Obras (`null` hasta la 008). Si Obras falla, `obra` vuelve `null` con el error (la lista no admite `null`).
+
+### Planillas (007)
+
+- `planilla(id)`: `GET /planillas/{id}` (Obras valida que el usuario vea la obra; si no, el campo vuelve `null` con el `codigo` de Obras). La misma planilla pedida con dos alias se pide una sola vez. `Planilla.cobro` llega con la 008.
+- `crearPlanilla` → `POST /obras/{obraId}/planillas` `{ periodo }`; `guardarPlanilla` → `PUT /planillas/{id}` con la entrada tal cual (`version`, `lineas`, `fotoIds`); `presentarPlanilla` → `POST /planillas/{id}/presentar` `{ version }`. Solo `residente` (el gateway responde `SIN_PERMISO` a otros roles sin llamar a Obras; que sea el residente asignado lo valida Obras). Sin reintento. Los errores de Obras llegan en `extensions.codigo` con `data: null`: `PLANILLA_ABIERTA_EXISTE`, `PERIODO_NO_POSTERIOR`, `PERIODO_FUTURO`, `OBRA_NO_EN_EJECUCION`, `VERSION_DESACTUALIZADA`, `PLANILLA_NO_EDITABLE`, `SUPERA_CANTIDAD_CONTRATADA` (con `extensions.errores[]`, `campo` = `partidaId`), `FOTO_FUERA_DEL_PERIODO` y `SUBTOTAL_CERO`.
+
+### Cómo se resuelve `tablero` (009)
+
+- `tablero` no llama a ningún servicio: cada parte la resuelve su propio campo, así que si un servicio no responde solo sus campos vuelven `null` con `SERVICIO_NO_DISPONIBLE` y el resto llega.
+- `obras`, `indicadores.obrasEnEjecucion` e `indicadores.obrasEnRiesgo`: `GET /obras?estado=EN_EJECUCION` (Obras), pedido una sola vez por petición. Las filas salen en el orden de Obras (por nombre); el ERP ordena la tabla. `diferencia` = `plazoPct − avancePct`, calculada en centésimas.
+- `FilaTablero.materialesBajos` e `indicadores.materialesBajos` (suma de las filas): `GET /stock/resumen?obraIds=a,b,c` (Materiales), **una sola llamada** en lote con el DataLoader de la petición (Materiales acepta hasta 100 obras por llamada: con más, una llamada por cada 100); una obra que Materiales no devuelve cuenta 0. Sin obras en ejecución no se llama a Materiales. Si Obras falla, el indicador también vuelve `null` (no hay obras que sumar).
+- `indicadores.cobrosVencidos`: `vencidos` de `GET /cobros/resumen` (Finanzas); `null` sin error (y sin llamar a Finanzas) si el rol efectivo no es `admin` ni `gerente`.
+
+### Riesgo de retraso (402)
+
+- `FilaTablero.riesgoRetraso`: DataLoader de la petición que junta los `obraId` del tablero en llamadas a `GET /predicciones?obraIds=` (IA) de hasta 100 obras cada una, en paralelo (IA rechaza más con `400 DEMASIADAS_OBRAS`). Una obra que IA no devuelve queda `{ nivel: SIN_DATOS, probabilidad: null, factores: [], versionModelo: null, calculadaEn: null }`.
+- `IndicadoresTablero.obrasRiesgoAlto`: filas del tablero con nivel `ALTO`, con el mismo lote (sin obras en ejecución, 0 sin llamar a IA).
+- `Obra.riesgoRetraso` e `Obra.historialRiesgo(limite)`: **una sola** llamada por obra a `GET /obras/{id}/prediccion?historial=` (DataLoader de la petición), con el mayor `limite` pedido en la consulta (30 si solo se pide `riesgoRetraso`); cada `historialRiesgo` recibe sus últimos `limite` puntos (del más antiguo al más reciente). Obra visible sin predicción: `SIN_DATOS` e historial vacío. Los errores de IA llegan con su `codigo` (por ejemplo `404 OBRA_NO_ENCONTRADA`) y solo afectan a estos campos.
+- `modeloRiesgo`: `GET /modelos/riesgo-retraso`; `umbrales.medio` y `umbrales.alto` se exponen como `umbralMedio` y `umbralAlto`; `datos` (`SINTETICOS` o `REALES`) va tal cual. Sin modelo cargado: `null` con `MODELO_NO_DISPONIBLE`.
+- Si IA no responde: esos campos vuelven `null` con `extensions.codigo = "SERVICIO_NO_DISPONIBLE"` y `extensions.servicio = "ia"`; el resto llega.
+
+### Consumos atípicos (403)
+
+- `Obra.consumosAtipicos(estado)`: `GET /consumos-atipicos?obraId=&estado=` (IA; sin `estado`, todas las revisiones), de la más reciente a la más antigua. `material` sale del catálogo de Materiales (pedido una sola vez por petición; un material que no está en el catálogo vuelve `null`) y `revisadoPor` de Keycloak; si uno falla, solo ese campo vuelve `null`.
+- `FilaTablero.consumosAtipicosPendientes`: DataLoader de la petición que junta los `obraId` del tablero en llamadas a `GET /consumos-atipicos/resumen?obraIds=` de hasta 100 obras cada una, en paralelo (IA rechaza más con `400 DEMASIADAS_OBRAS`); una obra que IA no devuelve cuenta 0. `IndicadoresTablero.consumosAtipicosPendientes` suma ese mismo lote (sin obras en ejecución, 0 sin llamar a IA).
+- `revisarConsumoAtipico` → `PUT /consumos-atipicos/{id}/revision` `{ estado, comentario }` (`comentario` solo si viene). Solo `admin` y `residente` (el gateway responde `SIN_PERMISO` a otros roles sin llamar a IA; que sea el residente asignado lo valida IA). Sin reintento. Los errores de IA llegan en `extensions.codigo` con `data: null`: `CONSUMO_ATIPICO_NO_ENCONTRADO` (404), `REVISION_YA_REGISTRADA` (409), `COMENTARIO_INVALIDO` (422, con `extensions.errores[]`, `campo` = `comentario`) y `DATOS_INVALIDOS` (400, estado `PENDIENTE` o desconocido).
+- Si IA no responde: esos campos vuelven `null` con `SERVICIO_NO_DISPONIBLE` (`extensions.servicio = "ia"`); los errores de IA llegan con su `codigo` (`404 OBRA_NO_ENCONTRADA`).
+
+### Constructor de reportes (503)
+
+- `catalogoReportes` → `GET /catalogo-reportes`; `consultasReporte(limite)` → `GET /consultas-reporte?limite=` (`limite` solo si viene; IA valida 1 a 20 y por defecto da 10). 3 s y un reintento.
+- `consultarReporte(texto, atajo)` → `POST /consultas-reporte` `{ texto | atajo, directorio }`. Exige **exactamente uno** de `texto` o `atajo`: con los dos o con ninguno, `DATOS_INVALIDOS` (`extensions.servicio = "gateway"`) sin llamar a IA. `directorio.clientes` (`[{ id, nombre }]`) son los usuarios con rol `cliente` de Keycloak (`GET /roles/cliente/users`, caché en memoria de 5 minutos como la de 006); si Keycloak falla, se envía sin `directorio` (IA avisa «Nombres de clientes no disponibles» o responde `SERVICIO_NO_DISPONIBLE` si se filtró por cliente). **Excepción al tiempo máximo:** 60 s, sin reintento.
+- La `receta` que manda IA no se expone. Los errores de IA llegan en `extensions.codigo` con `extensions.servicio = "ia"` y `data: null`: `TEXTO_INVALIDO` y `DATOS_INVALIDOS` (400), `INTENCION_NO_RECONOCIDA` (422), `RECETA_INVALIDA` (422, con `extensions.errores[]`), `DEMASIADAS_CONSULTAS` (429), `LLM_NO_DISPONIBLE`, `REPORTES_NO_DISPONIBLES` y `SERVICIO_NO_DISPONIBLE` (503), `TIEMPO_AGOTADO` (504). Si IA no responde en 60 s: `SERVICIO_NO_DISPONIBLE`.
+- `filas` es `[[String]!]!`: code-first no puede declararlo, así que `comun/graphql/listas-anidadas.ts` ajusta la lista interna al armar el esquema.
+
+### Agentes (502)
+
+- `agentes` → `GET /agentes`; `ejecucionesAgente(agente, estado, limite)` → `GET /ejecuciones?agente=&estado=&limite=`; `ejecucionAgente(id)` → `GET /ejecuciones/{id}`; `hallazgos(agente, obraId)` → `GET /hallazgos?agente=&obraId=`; `sugerencias(estado, agente, obraId, limite)` → `GET /sugerencias?estado=&agente=&obraId=&limite=`. Solo se envían los filtros que vienen; los rangos de `limite` los valida IA (`400 DATOS_INVALIDOS`). 3 s y un reintento.
+- Por rol, el gateway responde `SIN_PERMISO` sin llamar a IA (`ejecucionesAgente` y `ejecucionAgente`: `admin` y `gerente`; el resto también `residente`). Lo fino (residente: sus obras y nunca `CONTROL_COBROS`) lo aplica IA.
+- `EjecucionAgente.hallazgos`: `GET /ejecuciones/{id}` los manda sin `ejecucionId`, `agente` ni `detectadoEn`; el gateway los toma de la ejecución (`detectadoEn` = `terminadaEn`).
+- `EjecucionAgente.solicitadaPor` y `Sugerencia.decididaPor`: Keycloak con la caché de 5 minutos y el DataLoader de la petición (006); `null` sin llamar a Keycloak si IA manda `null` (programada o pendiente); si Keycloak falla, solo ese campo vuelve `null`.
+- `Obra.hallazgos(agente)` → `GET /hallazgos?obraId=&agente=` y `Obra.sugerencias(estado)` → `GET /sugerencias?obraId=&estado=` (una llamada por obra y filtro, con el DataLoader de la petición). Si IA no responde, solo ese campo vuelve `null` con `SERVICIO_NO_DISPONIBLE` y el resto de la obra llega.
+- `ejecutarAgente` → `POST /agentes/{agente}/ejecuciones` (sin cuerpo); `aprobarSugerencia` → `POST /sugerencias/{id}/aprobar` `{ comentario }` (`comentario` solo si viene); `rechazarSugerencia` → `POST /sugerencias/{id}/rechazar` `{ motivo }`. Sin reintento. Los errores de IA llegan en `extensions.codigo` con `extensions.servicio = "ia"` y `data: null`: `AGENTE_INVALIDO` (400), `EJECUCION_EN_CURSO` (409), `SUGERENCIA_NO_ENCONTRADA` (404, también si no puede verla), `SUGERENCIA_YA_DECIDIDA` (409), `COMENTARIO_INVALIDO` (422, con `extensions.errores[]`) y `MOTIVO_INVALIDO` (422). Aprobar solo registra la decisión.
+- `ejecucionAgente(id)` inexistente: `null` con `EJECUCION_NO_ENCONTRADA`. Si IA no responde: `SERVICIO_NO_DISPONIBLE` con `extensions.servicio = "ia"`.
+
+### Cobranza automática (201)
+
+- `Cobro.pagadoEn`, `Cobro.comprobante` y `Cobro.envios` llegan tal cual en `GET /cobros` y `GET /cobros/{id}` (Finanzas): no hay llamadas nuevas para leerlos. `envios` vacío si Finanzas no manda la lista. `CobroPlanilla.estado` admite `PAGADO` (mismo enum).
+- `registrarPagoCobro(cobroId, pagadoEn, comprobante)` → `POST /cobros/{id}/pago` `{ pagadoEn, comprobante }` (`comprobante` solo si viene) con el token del usuario; devuelve el cobro tal como lo responde Finanzas. Solo `admin` (el gateway responde `SIN_PERMISO` a otros roles sin llamar a Finanzas). Sin reintento. Las reglas (fecha entre la emisión y hoy, comprobante de hasta 50 caracteres) las valida Finanzas; sus errores llegan en `extensions.codigo` con `extensions.servicio = "finanzas"` y `data: null`: `DATOS_INVALIDOS` (400), `COBRO_NO_ENCONTRADO` (404), `COBRO_YA_PAGADO` (409) y `FECHA_PAGO_INVALIDA` (422). Si Finanzas no responde: `SERVICIO_NO_DISPONIBLE`.
+
+## Expone: REST técnico (601)
+
+- `GET /salud`: sin token, `200 {"estado":"ok"}` (convenciones, «Registros y salud»). Lo usan el `HEALTHCHECK` de la imagen y la prueba de humo. No toca a ningún servicio. La consulta GraphQL `{ salud }` sigue igual.
 
 ## Consume (REST)
 
@@ -146,8 +337,8 @@ Las capas 4 y 5 agregan tipos y campos (predicciones, agentes, sugerencias, repo
 |---|---|
 | Obras | `GET /obras`, `GET /obras/{id}`, `GET /obras/{id}/material-previsto`, `GET /obras/{id}/fotos`, `GET /obras/{id}/planillas`, `GET /planillas/{id}`, `POST /obras`, `POST /obras/{id}/planillas`, `PUT /planillas/{id}`, `POST /planillas/{id}/presentar` |
 | Materiales | `GET /materiales`, `POST /materiales`, `PUT /materiales/{id}`, `GET /obras/{id}/stock`, `PUT /obras/{id}/stock/{materialId}/minimo`, `GET /obras/{id}/consumos`, `GET /stock/resumen` |
-| Finanzas | `GET /contratos`, `GET /cobros`, `GET /cobros/{id}`, `GET /cobros/resumen` |
+| Finanzas | `GET /contratos`, `GET /cobros`, `GET /cobros/{id}`, `GET /cobros/resumen`; 201: `POST /cobros/{id}/pago` |
 | Keycloak (cliente `gateway`) | `GET /admin/realms/supervision/roles/{rol}/users`, `GET /admin/realms/supervision/users/{id}` |
-| IA (capas 4 y 5) | se definen en sus especificaciones |
+| IA (capas 4 y 5) | 402: `GET /predicciones?obraIds=` (hasta 100 por llamada), `GET /obras/{id}/prediccion?historial=`, `GET /modelos/riesgo-retraso`; 403: `GET /consumos-atipicos?obraId=&estado=`, `GET /consumos-atipicos/resumen?obraIds=` (hasta 100 por llamada), `PUT /consumos-atipicos/{id}/revision`; 503: `GET /catalogo-reportes`, `GET /consultas-reporte?limite=`, `POST /consultas-reporte` (60 s); 502: `GET /agentes`, `POST /agentes/{agente}/ejecuciones`, `GET /ejecuciones?agente=&estado=&limite=`, `GET /ejecuciones/{id}`, `GET /hallazgos?agente=&obraId=`, `GET /sugerencias?estado=&agente=&obraId=&limite=`, `POST /sugerencias/{id}/aprobar`, `POST /sugerencias/{id}/rechazar` |
 
-URLs base por variables de entorno: `OBRAS_URL`, `MATERIALES_URL`, `FINANZAS_URL`, `KEYCLOAK_URL`, `KEYCLOAK_GATEWAY_CLIENT_ID`, `KEYCLOAK_GATEWAY_CLIENT_SECRET`.
+URLs base por variables de entorno, **obligatorias y sin valor por defecto en el código** (601; las de desarrollo están en `.env.example`): `OBRAS_URL`, `MATERIALES_URL`, `FINANZAS_URL`, `IA_URL` (402) y `KEYCLOAK_URL`. Además `KEYCLOAK_REALM` (por defecto `supervision`), `KEYCLOAK_GATEWAY_CLIENT_ID` (por defecto `gateway`), `KEYCLOAK_GATEWAY_CLIENT_SECRET` y `CORS_ORIGENES`.
