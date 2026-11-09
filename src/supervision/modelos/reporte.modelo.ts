@@ -126,6 +126,47 @@ export class ConsultaReporte {
   creadaEn: string;
 }
 
+/** 505: qué trae la respuesta de un turno de la conversación (un reporte o una pregunta de aclaración). */
+export enum TipoRespuestaReporte {
+  REPORTE = 'REPORTE',
+  ACLARACION = 'ACLARACION',
+}
+registerEnumType(TipoRespuestaReporte, { name: 'TipoRespuestaReporte' });
+
+/** 505: pregunta del asistente cuando el pedido es vago o un nombre coincide con varios o con ninguno. */
+@ObjectType()
+export class AclaracionReporte {
+  @Field()
+  pregunta: string;
+
+  /** De 0 a 6 opciones que salen de los datos reales (el ERP las muestra como botones). */
+  @Field(() => [String])
+  opciones: string[];
+
+  /** Preguntas que quedan en la conversación (tope de 5). */
+  @Field(() => Int)
+  preguntasRestantes: number;
+}
+
+/**
+ * 505: respuesta de `consultarReporte`. Con `REPORTE` llega `consulta` (sin la receta) y `aclaracion` es null; con
+ * `ACLARACION`, al revés. `conversacionId` se manda en el turno siguiente para continuar la conversación.
+ */
+@ObjectType()
+export class RespuestaReporte {
+  @Field(() => ID)
+  conversacionId: string;
+
+  @Field(() => TipoRespuestaReporte)
+  tipo: TipoRespuestaReporte;
+
+  @Field(() => ConsultaReporte, { nullable: true })
+  consulta: ConsultaReporte | null;
+
+  @Field(() => AclaracionReporte, { nullable: true })
+  aclaracion: AclaracionReporte | null;
+}
+
 /** Una consulta del historial del usuario (`GET /consultas-reporte`, 503). */
 @ObjectType()
 export class ConsultaReporteCorta {
