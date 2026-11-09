@@ -59,7 +59,7 @@ const HISTORIAL = [
   },
 ];
 
-/** Contrato REST de IA: respuesta `200` de `POST /consultas-reporte` (503). */
+/** Contrato REST de IA: el reporte (`consulta`) de la respuesta `200` de `POST /consultas-reporte` (503). */
 const CONSULTA = {
   id: 'r1',
   texto: '¿Cuánto cemento se usó en Las Palmas este trimestre?',
@@ -90,11 +90,50 @@ const CONSULTA = {
   creadaEn: '2027-03-20T14:00:00Z',
 };
 
+const CONVERSACION = 'b0000000-0000-4000-8000-000000000505';
+
+/** Contrato REST de IA: respuesta `200` de `POST /consultas-reporte` con un reporte (505). */
+const conReporte = (consulta: Record<string, unknown> = CONSULTA) => ({
+  conversacionId: CONVERSACION,
+  tipo: 'REPORTE',
+  consulta,
+  aclaracion: null,
+});
+
+/** Contrato REST de IA: respuesta `200` de `POST /consultas-reporte` con una pregunta de aclaración (505). */
+const ACLARACION = {
+  conversacionId: CONVERSACION,
+  tipo: 'ACLARACION',
+  consulta: null,
+  aclaracion: {
+    pregunta: '«cemento» coincide con dos materiales. ¿Cuál?',
+    opciones: ['Cemento IP-30', 'Cemento cola', 'Todos'],
+    preguntasRestantes: 4,
+  },
+};
+
 const CAMPOS = `id texto atajo conjunto tituloConjunto aplicado { nombre valor } resumen resumenPlantilla
   avisos columnas { clave titulo tipo } filas totalFilas truncado creadaEn`;
-const MUTACION = `mutation ($texto: String, $atajo: AtajoReporte) {
-  consultarReporte(texto: $texto, atajo: $atajo) { ${CAMPOS} }
+const MUTACION = `mutation ($texto: String, $atajo: AtajoReporte, $conversacionId: ID) {
+  consultarReporte(texto: $texto, atajo: $atajo, conversacionId: $conversacionId) {
+    conversacionId tipo consulta { ${CAMPOS} } aclaracion { pregunta opciones preguntasRestantes }
+  }
 }`;
+
+/** Un tipo de la introspección de GraphQL. */
+interface TipoIntrospeccion {
+  name: string | null;
+  kind: string;
+  ofType: TipoIntrospeccion | null;
+}
+
+/** El tipo como en el SDL del contrato (`[String!]!`) a partir de la introspección. */
+const comoSdl = (tipo: TipoIntrospeccion): string =>
+  tipo.kind === 'NON_NULL'
+    ? `${comoSdl(tipo.ofType!)}!`
+    : tipo.kind === 'LIST'
+      ? `[${comoSdl(tipo.ofType!)}]`
+      : tipo.name!;
 
 /** Responde según la ruta (sin la consulta); lo que no está en el mapa responde 404. */
 const porRuta =
@@ -249,11 +288,14 @@ describe('Reportes (e2e)', () => {
     it('Keycloak caído: envía el pedido sin directorio (IA avisa) y el reporte llega', async () => {
       keycloak.responder = keycloakCon({ estado: 503 });
       iaResponde({
-        cuerpo: { ...CONSULTA, avisos: ['Nombres de clientes no disponibles'] },
+        cuerpo: conReporte({
+          ...CONSULTA,
+          avisos: ['Nombres de clientes no disponibles'],
+        }),
       });
       const respuesta = await consultar(MUTACION, { texto: CONSULTA.texto });
       expect(respuesta.body.errors).toBeUndefined();
-      expect(respuesta.body.data.consultarReporte.avisos).toEqual([
+      expect(respuesta.body.data.consultarReporte.consulta.avisos).toEqual([
         'Nombres de clientes no disponibles',
       ]);
       expect(JSON.parse(ia.pedidos[0].cuerpo)).toEqual({
@@ -262,11 +304,16 @@ describe('Reportes (e2e)', () => {
     });
 
     it('envía el texto con el directorio de clientes de Keycloak y devuelve el reporte sin la receta', async () => {
-      iaResponde({ cuerpo: CONSULTA });
+      iaResponde({ cuerpo: conReporte() });
       const respuesta = await consultar(MUTACION, { texto: CONSULTA.texto });
       expect(respuesta.body.errors).toBeUndefined();
       const { receta: _receta, ...esperado } = CONSULTA;
-      expect(respuesta.body.data.consultarReporte).toEqual(esperado);
+      expect(respuesta.body.data.consultarReporte).toEqual({
+        conversacionId: CONVERSACION,
+        tipo: 'REPORTE',
+        consulta: esperado,
+        aclaracion: null,
+      });
       expect(ia.pedidos).toHaveLength(1);
       expect(ia.pedidos[0].metodo).toBe('POST');
       expect(ia.pedidos[0].encabezados.authorization).toMatch(/^Bearer /);
@@ -280,19 +327,19 @@ describe('Reportes (e2e)', () => {
 
     it('con un atajo envía solo el atajo y el directorio (de la caché: no vuelve a pedir a Keycloak)', async () => {
       iaResponde({
-        cuerpo: {
+        cuerpo: conReporte({
           ...CONSULTA,
           texto: null,
           atajo: 'COBROS_POR_VENCER',
           conjunto: 'COBROS',
           tituloConjunto: 'Cobros',
-        },
+        }),
       });
       const respuesta = await consultar(MUTACION, {
         atajo: 'COBROS_POR_VENCER',
       });
       expect(respuesta.body.errors).toBeUndefined();
-      expect(respuesta.body.data.consultarReporte).toMatchObject({
+      expect(respuesta.body.data.consultarReporte.consulta).toMatchObject({
         texto: null,
         atajo: 'COBROS_POR_VENCER',
         conjunto: 'COBROS',
@@ -306,9 +353,69 @@ describe('Reportes (e2e)', () => {
       expect(keycloak.rutas).not.toContain(RUTA_CLIENTES);
     });
 
+    it('505: una pregunta de aclaración llega con sus opciones y consulta null', async () => {
+      iaResponde({ cuerpo: ACLARACION });
+      const respuesta = await consultar(MUTACION, {
+        texto: '¿Cuánto cemento se usó?',
+      });
+      expect(respuesta.body.errors).toBeUndefined();
+      expect(respuesta.body.data.consultarReporte).toEqual(ACLARACION);
+      expect(JSON.parse(ia.pedidos[0].cuerpo)).not.toHaveProperty(
+        'conversacionId',
+      );
+    });
+
+    it('505: reenvía el conversacionId para continuar la conversación', async () => {
+      iaResponde({ cuerpo: conReporte() });
+      const respuesta = await consultar(MUTACION, {
+        texto: 'IP-30',
+        conversacionId: CONVERSACION,
+      });
+      expect(respuesta.body.errors).toBeUndefined();
+      expect(respuesta.body.data.consultarReporte).toMatchObject({
+        conversacionId: CONVERSACION,
+        tipo: 'REPORTE',
+        aclaracion: null,
+      });
+      expect(respuesta.body.data.consultarReporte.consulta).not.toHaveProperty(
+        'receta',
+      );
+      expect(ia.pedidos).toHaveLength(1);
+      expect(JSON.parse(ia.pedidos[0].cuerpo)).toEqual({
+        texto: 'IP-30',
+        conversacionId: CONVERSACION,
+        directorio: {
+          clientes: [{ id: CLIENTE, nombre: 'Constructora Andina SRL' }],
+        },
+      });
+    });
+
+    it('505: CONVERSACION_NO_ENCONTRADA (404) llega en extensions.codigo con data null y no se reintenta', async () => {
+      iaResponde({
+        estado: 404,
+        cuerpo: {
+          title: 'La conversación no existe o expiró',
+          status: 404,
+          codigo: 'CONVERSACION_NO_ENCONTRADA',
+        },
+      });
+      const respuesta = await consultar(MUTACION, {
+        texto: 'sí',
+        conversacionId: CONVERSACION,
+      });
+      expect(respuesta.body.data).toBeNull();
+      expect(respuesta.body.errors[0].extensions).toMatchObject({
+        codigo: 'CONVERSACION_NO_ENCONTRADA',
+        servicio: 'ia',
+        estado: 404,
+      });
+      expect(ia.pedidos).toHaveLength(1);
+    });
+
     it.each([
       ['texto y atajo a la vez', { texto: 'Cobros', atajo: 'COBROS_VENCIDOS' }],
       ['sin texto ni atajo', {}],
+      ['solo conversacionId', { conversacionId: CONVERSACION }],
     ])(
       '%s: DATOS_INVALIDOS del gateway sin llamar a IA',
       async (_caso, variables) => {
@@ -392,10 +499,10 @@ describe('Reportes (e2e)', () => {
     );
 
     it('IA lenta (más de 3 s): espera hasta 60 s y el reporte llega, con un solo pedido', async () => {
-      iaResponde({ cuerpo: CONSULTA, esperaMs: 3500 });
+      iaResponde({ cuerpo: conReporte(), esperaMs: 3500 });
       const respuesta = await consultar(MUTACION, { texto: CONSULTA.texto });
       expect(respuesta.body.errors).toBeUndefined();
-      expect(respuesta.body.data.consultarReporte.id).toBe('r1');
+      expect(respuesta.body.data.consultarReporte.consulta.id).toBe('r1');
       expect(ia.pedidos).toHaveLength(1);
     }, 15_000);
 
@@ -443,6 +550,47 @@ describe('Reportes (e2e)', () => {
         (campo: { name: string }) => campo.name === 'receta',
       );
       expect(receta).toBeUndefined();
+    });
+
+    it('505: el esquema expone RespuestaReporte, AclaracionReporte y la mutación con conversacionId (contrato)', async () => {
+      const tipo =
+        'name kind ofType { name kind ofType { name kind ofType { name kind } } }';
+      const respuesta = await consultar(`{
+        respuesta: __type(name: "RespuestaReporte") { fields { name type { ${tipo} } } }
+        aclaracion: __type(name: "AclaracionReporte") { fields { name type { ${tipo} } } }
+        tipoRespuesta: __type(name: "TipoRespuestaReporte") { enumValues { name } }
+        mutaciones: __type(name: "Mutation") {
+          fields { name args { name type { ${tipo} } } type { ${tipo} } }
+        }
+      }`);
+      expect(respuesta.body.errors).toBeUndefined();
+      const datos = respuesta.body.data;
+      const campos = (lista: { name: string; type: TipoIntrospeccion }[]) =>
+        Object.fromEntries(lista.map((c) => [c.name, comoSdl(c.type)]));
+
+      expect(campos(datos.respuesta.fields)).toEqual({
+        conversacionId: 'ID!',
+        tipo: 'TipoRespuestaReporte!',
+        consulta: 'ConsultaReporte',
+        aclaracion: 'AclaracionReporte',
+      });
+      expect(campos(datos.aclaracion.fields)).toEqual({
+        pregunta: 'String!',
+        opciones: '[String!]!',
+        preguntasRestantes: 'Int!',
+      });
+      expect(
+        datos.tipoRespuesta.enumValues.map((v: { name: string }) => v.name),
+      ).toEqual(['REPORTE', 'ACLARACION']);
+      const mutacion = datos.mutaciones.fields.find(
+        (campo: { name: string }) => campo.name === 'consultarReporte',
+      );
+      expect(comoSdl(mutacion.type)).toBe('RespuestaReporte!');
+      expect(campos(mutacion.args)).toEqual({
+        texto: 'String',
+        atajo: 'AtajoReporte',
+        conversacionId: 'ID',
+      });
     });
   });
 });
