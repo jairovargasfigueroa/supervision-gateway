@@ -5,5 +5,5 @@ Requisitos y diseño: `docs/specs/505-asistente-reportes/` de la carpeta que agr
 Marca cada tarea al terminarla (con sus pruebas y su commit).
 
 - [x] Aplicar «Cambios a contratos y datos» del gateway: `docs/contratos.md` (`RespuestaReporte`, `AclaracionReporte`, `TipoRespuestaReporte`)
-- [ ] `consultarReporte(texto, atajo, conversacionId)` devuelve `RespuestaReporte`; reenvía `conversacionId`, quita `receta` de `consulta` y deja pasar `CONVERSACION_NO_ENCONTRADA`
+- [x] `consultarReporte(texto, atajo, conversacionId)` devuelve `RespuestaReporte`; reenvía `conversacionId`, quita `receta` de `consulta` y deja pasar `CONVERSACION_NO_ENCONTRADA`
 - [ ] Pruebas unitarias y e2e en verde

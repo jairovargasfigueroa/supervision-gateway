@@ -7,10 +7,12 @@ import type {
   EstadoRevision,
 } from './modelos/consumo-atipico.modelo.js';
 import type {
+  AclaracionReporte,
   AtajoReporte,
   CatalogoReportes,
   ConsultaReporte,
   ConsultaReporteCorta,
+  TipoRespuestaReporte,
 } from './modelos/reporte.modelo.js';
 import type { RiesgoRetraso } from './modelos/riesgo.modelo.js';
 import { riesgoDesdePrediccion, sinPrediccion } from './riesgo.js';
@@ -51,17 +53,30 @@ export interface PrediccionObraRest extends PrediccionRest {
  */
 export const TIEMPO_MAXIMO_CONSULTA_REPORTE_MS = 60_000;
 
-/** Cuerpo de `POST /consultas-reporte` (503): exactamente uno de `texto` o `atajo`; `directorio` lo agrega el gateway. */
+/**
+ * Cuerpo de `POST /consultas-reporte` (503 y 505): exactamente uno de `texto` o `atajo`; `conversacionId` solo para
+ * continuar una conversación; `directorio` lo agrega el gateway.
+ */
 export interface PedidoReporteRest {
   texto?: string;
   atajo?: AtajoReporte;
+  /** 505: continúa esa conversación (sin él, IA empieza una nueva). */
+  conversacionId?: string;
   /** Clientes de Keycloak (nombres de la columna y del filtro `cliente`); sin él, IA avisa. */
   directorio?: { clientes: { id: string; nombre: string }[] };
 }
 
-/** Respuesta de `POST /consultas-reporte` (503); la `receta` no se expone por GraphQL. */
+/** Reporte de `POST /consultas-reporte` (503); la `receta` no se expone por GraphQL. */
 export interface ConsultaReporteRest extends ConsultaReporte {
   receta: unknown;
+}
+
+/** Respuesta `200` de `POST /consultas-reporte` (505): un reporte o una pregunta de aclaración. */
+export interface RespuestaReporteRest {
+  conversacionId: string;
+  tipo: TipoRespuestaReporte;
+  consulta: ConsultaReporteRest | null;
+  aclaracion: AclaracionReporte | null;
 }
 
 /** Ejecución corta de un agente (`GET /ejecuciones`, `POST /agentes/{agente}/ejecuciones`, 502). */
@@ -381,15 +396,16 @@ export class IaCliente {
   }
 
   /**
-   * `POST /consultas-reporte` (503) con tiempo máximo de 60 s y sin reintento. Los errores llegan con su codigo:
-   * 400 TEXTO_INVALIDO y DATOS_INVALIDOS, 422 INTENCION_NO_RECONOCIDA y RECETA_INVALIDA (con `errores[]`),
-   * 429 DEMASIADAS_CONSULTAS, 503 LLM_NO_DISPONIBLE, REPORTES_NO_DISPONIBLES y SERVICIO_NO_DISPONIBLE, 504 TIEMPO_AGOTADO.
+   * `POST /consultas-reporte` (503 y 505) con tiempo máximo de 60 s y sin reintento. Los errores llegan con su codigo:
+   * 400 TEXTO_INVALIDO y DATOS_INVALIDOS, 404 CONVERSACION_NO_ENCONTRADA (505), 422 INTENCION_NO_RECONOCIDA y
+   * RECETA_INVALIDA (con `errores[]`), 429 DEMASIADAS_CONSULTAS, 503 LLM_NO_DISPONIBLE, REPORTES_NO_DISPONIBLES y
+   * SERVICIO_NO_DISPONIBLE, 504 TIEMPO_AGOTADO.
    */
   consultarReporte(
     pedido: PedidoReporteRest,
     contexto: ContextoGraphql,
-  ): Promise<ConsultaReporteRest> {
-    return this.cliente.enviar<ConsultaReporteRest>(
+  ): Promise<RespuestaReporteRest> {
+    return this.cliente.enviar<RespuestaReporteRest>(
       'ia',
       'POST',
       '/consultas-reporte',
