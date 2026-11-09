@@ -2,7 +2,6 @@ import type { ContextoGraphql } from '../comun/auth/contexto.js';
 import type { ClienteServicio } from '../comun/http/cliente-servicio.js';
 import { IaCliente } from './ia.cliente.js';
 import { EstadoRevision } from './modelos/consumo-atipico.modelo.js';
-import { AtajoReporte } from './modelos/reporte.modelo.js';
 
 const contexto = {
   req: { requestId: 'req-1', token: 't' },
@@ -122,10 +121,11 @@ describe('IaCliente', () => {
     );
   });
 
-  it('consultarReporte envía POST /consultas-reporte con 60 s y sin reintento (enviar)', async () => {
+  it('consultarReporte envía POST /consultas-reporte (con conversacionId, 505) con 60 s y sin reintento (enviar)', async () => {
     const { servicio, ia } = crear();
     const pedido = {
-      atajo: AtajoReporte.COBROS_POR_VENCER,
+      texto: 'IP-30',
+      conversacionId: 'conv-1',
       directorio: { clientes: [{ id: 'c1', nombre: 'Constructora Andina' }] },
     };
     await ia.consultarReporte(pedido, contexto);

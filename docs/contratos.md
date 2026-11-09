@@ -165,6 +165,12 @@ type ConjuntoDisponible {
 }
 type AtajoDisponible { atajo: AtajoReporte! titulo: String! descripcion: String! }
 type CatalogoReportes { conjuntos: [ConjuntoDisponible!]! atajos: [AtajoDisponible!]! }
+# 505 · conversación en la misma consulta
+enum TipoRespuestaReporte { REPORTE ACLARACION }
+type AclaracionReporte { pregunta: String! opciones: [String!]! preguntasRestantes: Int! }
+type RespuestaReporte {
+  conversacionId: ID! tipo: TipoRespuestaReporte! consulta: ConsultaReporte aclaracion: AclaracionReporte
+}
 
 # 502 · agentes en el ERP (servicio de IA)
 enum Agente { SEGUIMIENTO_OBRAS CONTROL_MATERIALES CONTROL_COBROS }
@@ -261,7 +267,7 @@ type Mutation {
   guardarPlanilla(id: ID!, entrada: GuardarPlanillaEntrada!): Planilla!      # 007 · residente asignado
   presentarPlanilla(id: ID!, version: Int!): Planilla!                       # 007 · residente asignado
   revisarConsumoAtipico(id: ID!, estado: EstadoRevision!, comentario: String): ConsumoAtipico!   # 403 · admin, residente (asignado: lo valida IA)
-  consultarReporte(texto: String, atajo: AtajoReporte): ConsultaReporte!     # 503 · admin, gerente (IA, 60 s)
+  consultarReporte(texto: String, atajo: AtajoReporte, conversacionId: ID): RespuestaReporte!   # 503 y 505 · admin, gerente (IA, 60 s)
   ejecutarAgente(agente: Agente!): EjecucionCorta!                           # 502 · admin, gerente
   aprobarSugerencia(id: ID!, comentario: String): Sugerencia!                # 502 · admin, gerente, residente (sus obras, sin CONTROL_COBROS)
   rechazarSugerencia(id: ID!, motivo: String!): Sugerencia!                  # 502 · admin, gerente, residente (sus obras, sin CONTROL_COBROS)
@@ -308,7 +314,7 @@ type Mutation {
 ### Constructor de reportes (503)
 
 - `catalogoReportes` → `GET /catalogo-reportes`; `consultasReporte(limite)` → `GET /consultas-reporte?limite=` (`limite` solo si viene; IA valida 1 a 20 y por defecto da 10). 3 s y un reintento.
-- `consultarReporte(texto, atajo)` → `POST /consultas-reporte` `{ texto | atajo, directorio }`. Exige **exactamente uno** de `texto` o `atajo`: con los dos o con ninguno, `DATOS_INVALIDOS` (`extensions.servicio = "gateway"`) sin llamar a IA. `directorio.clientes` (`[{ id, nombre }]`) son los usuarios con rol `cliente` de Keycloak (`GET /roles/cliente/users`, caché en memoria de 5 minutos como la de 006); si Keycloak falla, se envía sin `directorio` (IA avisa «Nombres de clientes no disponibles» o responde `SERVICIO_NO_DISPONIBLE` si se filtró por cliente). **Excepción al tiempo máximo:** 60 s, sin reintento.
+- `consultarReporte(texto, atajo, conversacionId)` → `POST /consultas-reporte` `{ texto | atajo, conversacionId?, directorio }` (505: devuelve `RespuestaReporte` con un reporte o una pregunta de aclaración; `CONVERSACION_NO_ENCONTRADA` pasa tal cual). Exige **exactamente uno** de `texto` o `atajo`: con los dos o con ninguno, `DATOS_INVALIDOS` (`extensions.servicio = "gateway"`) sin llamar a IA. `directorio.clientes` (`[{ id, nombre }]`) son los usuarios con rol `cliente` de Keycloak (`GET /roles/cliente/users`, caché en memoria de 5 minutos como la de 006); si Keycloak falla, se envía sin `directorio` (IA avisa «Nombres de clientes no disponibles» o responde `SERVICIO_NO_DISPONIBLE` si se filtró por cliente). **Excepción al tiempo máximo:** 60 s, sin reintento.
 - La `receta` que manda IA no se expone. Los errores de IA llegan en `extensions.codigo` con `extensions.servicio = "ia"` y `data: null`: `TEXTO_INVALIDO` y `DATOS_INVALIDOS` (400), `INTENCION_NO_RECONOCIDA` (422), `RECETA_INVALIDA` (422, con `extensions.errores[]`), `DEMASIADAS_CONSULTAS` (429), `LLM_NO_DISPONIBLE`, `REPORTES_NO_DISPONIBLES` y `SERVICIO_NO_DISPONIBLE` (503), `TIEMPO_AGOTADO` (504). Si IA no responde en 60 s: `SERVICIO_NO_DISPONIBLE`.
 - `filas` es `[[String]!]!`: code-first no puede declararlo, así que `comun/graphql/listas-anidadas.ts` ajusta la lista interna al armar el esquema.
 
